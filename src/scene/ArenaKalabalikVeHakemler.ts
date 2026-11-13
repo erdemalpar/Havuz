@@ -3,10 +3,16 @@ import {
   GALATASARAY_RENKLERI,
   type KaynakTemizlenebilir,
 } from '../types/simulation';
+import {
+  AnatomikInsanUretici,
+  type AnatomikInsanFiguru,
+  type InsanGorunumSecenekleri,
+} from './AnatomikInsanUretici';
 
 const GUVERTE_UST_Y = 0.175;
 
 type TaraftarRolu = 'atki' | 'bayrak' | 'beste';
+type BaslikKategorisi = 'kisa_sac' | 'topuz_sac' | 'kep' | 'bere';
 
 interface TaraftarVerisi {
   x: number;
@@ -18,14 +24,12 @@ interface TaraftarVerisi {
   olcek: number;
   rol: TaraftarRolu;
   altRolIndeks: number;
+  baslikKategori: BaslikKategorisi;
+  baslikAltIndeks: number;
 }
 
 interface YuruyenHakem {
-  grup: THREE.Group;
-  solKol: THREE.Group;
-  sagKol: THREE.Group;
-  solBacak: THREE.Group;
-  sagBacak: THREE.Group;
+  figur: AnatomikInsanFiguru;
   sabitX: number;
   minZ: number;
   makZ: number;
@@ -33,19 +37,19 @@ interface YuruyenHakem {
   yonZ: 1 | -1;
   hiz: number;
   adimFazi: number;
+  havuzYonIsareti: -1 | 1;
 }
 
 interface PuanHakemi {
-  sagKol: THREE.Group;
+  figur: AnatomikInsanFiguru;
+  faz: number;
   tabelaTuval: HTMLCanvasElement;
   tabelaBaglam: CanvasRenderingContext2D;
   tabelaDoku: THREE.CanvasTexture;
 }
 
 interface AntrenorFiguru {
-  grup: THREE.Group;
-  solKol: THREE.Group;
-  sagKol: THREE.Group;
+  figur: AnatomikInsanFiguru;
   baslangicX: number;
   baslangicZ: number;
   faz: number;
@@ -62,13 +66,14 @@ interface BesteNotaKaydi {
 }
 
 /**
- * Tribünlerdeki çeşitli seyircileri (atkı sallayanlar, bayrak sallayanlar,
+ * Tribünlerdeki anatomik seyircileri (atkı sallayanlar, bayrak sallayanlar,
  * kafalarının üzerinde beste notaları yükselenler), havuz kenarı hakemlerini,
- * 5 puan hakemi masasını ve Galatasaraylı yüzme antrenörlerini yönetir.
+ * 5 puan hakemi masasını, Galatasaraylı yüzme antrenörlerini ve cankurtaranı yönetir.
  */
 export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
   private readonly sahne: THREE.Scene;
   private readonly anaGrup: THREE.Group;
+  private readonly insanUretici: AnatomikInsanUretici;
   private readonly olusturulanGeometriler: THREE.BufferGeometry[] = [];
   private readonly olusturulanMateryaller: THREE.Material[] = [];
   private readonly olusturulanDokular: THREE.Texture[] = [];
@@ -78,9 +83,18 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
   private readonly bayrakIndeksleri: number[] = [];
   private readonly besteNotalari: BesteNotaKaydi[] = [];
 
+  private readonly kisaSacTaraftarlari: number[] = [];
+  private readonly topuzSacTaraftarlari: number[] = [];
+  private readonly kepTaraftarlari: number[] = [];
+  private readonly bereTaraftarlari: number[] = [];
+
+  private altVucutInstanced!: THREE.InstancedMesh;
   private govdeInstanced!: THREE.InstancedMesh;
   private basInstanced!: THREE.InstancedMesh;
-  private sapkaInstanced!: THREE.InstancedMesh;
+  private kisaSacInstanced!: THREE.InstancedMesh;
+  private topuzSacInstanced!: THREE.InstancedMesh;
+  private kepInstanced!: THREE.InstancedMesh;
+  private bereInstanced!: THREE.InstancedMesh;
   private solKolInstanced!: THREE.InstancedMesh;
   private sagKolInstanced!: THREE.InstancedMesh;
   private atkiInstanced!: THREE.InstancedMesh;
@@ -89,19 +103,21 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
   private readonly notaInstancedListesi: THREE.InstancedMesh[] = [];
 
   private readonly yuruyenHakemler: YuruyenHakem[] = [];
-  private starterSagKol!: THREE.Group;
+  private starterHakem!: AnatomikInsanFiguru;
+  private bitisHakem!: AnatomikInsanFiguru;
   private starterIsaretKalanSure = 0;
 
   private readonly puanHakemleri: PuanHakemi[] = [];
   private hakemPuanGosterimKalanSure = 0;
 
   private readonly antrenorler: AntrenorFiguru[] = [];
+  private cankurtaran!: AnatomikInsanFiguru;
 
   // Kare başına GC baskısını sıfırlamak için yeniden kullanılan matematik nesneleri
   private readonly geciciMatris = new THREE.Matrix4();
   private readonly geciciKonum = new THREE.Vector3();
   private readonly geciciRotasyon = new THREE.Quaternion();
-  private readonly geciciEuler = new THREE.Euler();
+  private readonly geciciEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly geciciOlcek = new THREE.Vector3(1, 1, 1);
 
   private temizlendiMi = false;
@@ -110,19 +126,21 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     this.sahne = sahne;
     this.anaGrup = new THREE.Group();
     this.anaGrup.name = 'arenaKalabalikVeHakemler';
+    this.insanUretici = new AnatomikInsanUretici();
 
     this.tribunSeyircileriniOlustur();
     this.havuzKenariHakemleriniOlustur();
     this.puanHakemleriMasasiniOlustur();
     this.yuzucuAntrenorleriniOlustur();
+    this.cankurtaraniOlustur();
 
     this.guncelle(0.016, 0, 0.25);
     this.sahne.add(this.anaGrup);
   }
 
   /**
-   * 2 tribünde farklı kıyafet/ten tiplerinde atkılı, bayraklı ve beste söyleyen
-   * seyircileri ve yükselen müzik notalarını InstancedMesh ile kurar.
+   * 2 tribünde anatomik vücutlu, çeşitli saç/kep/ten tiplerinde atkılı, bayraklı
+   * ve beste söyleyen seyircileri InstancedMesh ile 60 FPS performansında kurar.
    */
   private tribunSeyircileriniOlustur(): void {
     const baslangicX = 13.25;
@@ -135,8 +153,9 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
 
     for (const tarafIsaret of [-1, 1] as const) {
       for (let b = 0; b < basamakSayisi; b += 1) {
-        const siraY = GUVERTE_UST_Y + (b + 1) * basamakYukseklik + 0.08;
-        const siraX = tarafIsaret * (baslangicX + b * basamakDerinlik + 0.55);
+        // SporKompleksiMimarisi koltuk oturak üstü yüksekliğiyle birebir eşleşme
+        const siraY = GUVERTE_UST_Y + (b + 1) * basamakYukseklik + 0.11;
+        const siraX = tarafIsaret * (baslangicX + b * basamakDerinlik + 0.54);
 
         for (let k = 0; k < zAdet; k += 1) {
           // Tribün doğallığı için koltukların %68'ini dengeli dağıt
@@ -153,10 +172,10 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
             rolIndeks === 0 ? 'atki' : rolIndeks === 1 ? 'bayrak' : 'beste';
 
           const z = zBaslangic + k * zAdim + (rastgele - 0.5) * 0.42;
-          const olcek = 0.93 + rastgele * 0.14;
+          const olcek = 0.92 + rastgele * 0.15;
 
-          let altRolIndeks = 0;
           const taraftarIndeks = this.taraftarlar.length;
+          let altRolIndeks = 0;
           if (rol === 'atki') {
             altRolIndeks = this.atkiIndeksleri.length;
             this.atkiIndeksleri.push(taraftarIndeks);
@@ -168,13 +187,35 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
             const tipIndeksi = (this.besteNotalari.length % 3) as 0 | 1 | 2;
             this.besteNotalari.push({
               temelX: siraX,
-              temelY: siraY + 1.05 * olcek,
+              temelY: siraY + 1.02 * olcek,
               temelZ: z,
               faz: rastgele * Math.PI * 2,
               hiz: 0.58 + rastgele * 0.34,
               tipIndeksi,
               altIndeks: 0,
             });
+          }
+
+          // Başlık çeşitliliği: kısa saç (%35), topuz (%25), spor kep (%28), bere (%12)
+          const baslikKura = (taraftarIndeks * 7 + b * 3 + k) % 20;
+          let baslikKategori: BaslikKategorisi = 'kisa_sac';
+          let baslikAltIndeks = 0;
+          if (baslikKura < 7) {
+            baslikKategori = 'kisa_sac';
+            baslikAltIndeks = this.kisaSacTaraftarlari.length;
+            this.kisaSacTaraftarlari.push(taraftarIndeks);
+          } else if (baslikKura < 12) {
+            baslikKategori = 'topuz_sac';
+            baslikAltIndeks = this.topuzSacTaraftarlari.length;
+            this.topuzSacTaraftarlari.push(taraftarIndeks);
+          } else if (baslikKura < 18) {
+            baslikKategori = 'kep';
+            baslikAltIndeks = this.kepTaraftarlari.length;
+            this.kepTaraftarlari.push(taraftarIndeks);
+          } else {
+            baslikKategori = 'bere';
+            baslikAltIndeks = this.bereTaraftarlari.length;
+            this.bereTaraftarlari.push(taraftarIndeks);
           }
 
           this.taraftarlar.push({
@@ -187,6 +228,8 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
             olcek,
             rol,
             altRolIndeks,
+            baslikKategori,
+            baslikAltIndeks,
           });
         }
       }
@@ -194,29 +237,28 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
 
     const toplamTaraftar = this.taraftarlar.length;
 
-    const govdeGeometri = new THREE.BoxGeometry(0.38, 0.54, 0.24);
-    const basGeometri = new THREE.SphereGeometry(0.135, 10, 10);
-    const sapkaGeometri = new THREE.CylinderGeometry(0.145, 0.15, 0.09, 10);
-    const kolGeometri = new THREE.CapsuleGeometry(0.052, 0.32, 4, 6);
-    const atkiGeometri = new THREE.BoxGeometry(0.84, 0.14, 0.025);
-    const gonderGeometri = new THREE.CylinderGeometry(0.014, 0.016, 1.05, 6);
-    const bayrakGeometri = new THREE.PlaneGeometry(0.66, 0.44);
-    bayrakGeometri.translate(0.33, 0, 0);
+    const atkiGeometri = new THREE.BoxGeometry(0.84, 0.14, 0.024);
+    const gonderGeometri = new THREE.CylinderGeometry(0.013, 0.016, 1.05, 8);
+    const bayrakGeometri = new THREE.PlaneGeometry(0.68, 0.44);
+    bayrakGeometri.translate(0.34, 0, 0);
+    this.olusturulanGeometriler.push(atkiGeometri, gonderGeometri, bayrakGeometri);
 
-    this.olusturulanGeometriler.push(
-      govdeGeometri,
-      basGeometri,
-      sapkaGeometri,
-      kolGeometri,
-      atkiGeometri,
-      gonderGeometri,
-      bayrakGeometri,
-    );
-
-    const standartBeyazMateryal = new THREE.MeshStandardMaterial({
+    const kumasMateryal = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       roughness: 0.62,
-      metalness: 0.05,
+      metalness: 0.04,
+    });
+    const kafaYuzDokusu = this.insanUretici.tribunOrtakYuzDokusuGetir();
+    const yuzMateryal = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: kafaYuzDokusu,
+      roughness: 0.52,
+      metalness: 0.03,
+    });
+    const sacMateryal = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.72,
+      metalness: 0.04,
     });
     const atkiDokusu = this.gsAtkiDokusuOlustur();
     const atkiMateryali = new THREE.MeshStandardMaterial({
@@ -239,26 +281,81 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     });
 
     this.olusturulanMateryaller.push(
-      standartBeyazMateryal,
+      kumasMateryal,
+      yuzMateryal,
+      sacMateryal,
       atkiMateryali,
       bayrakMateryali,
       gonderMateryali,
     );
 
-    this.govdeInstanced = new THREE.InstancedMesh(govdeGeometri, standartBeyazMateryal, toplamTaraftar);
-    this.basInstanced = new THREE.InstancedMesh(basGeometri, standartBeyazMateryal, toplamTaraftar);
-    this.sapkaInstanced = new THREE.InstancedMesh(sapkaGeometri, standartBeyazMateryal, toplamTaraftar);
-    this.solKolInstanced = new THREE.InstancedMesh(kolGeometri, standartBeyazMateryal, toplamTaraftar);
-    this.sagKolInstanced = new THREE.InstancedMesh(kolGeometri, standartBeyazMateryal, toplamTaraftar);
-    this.atkiInstanced = new THREE.InstancedMesh(atkiGeometri, atkiMateryali, Math.max(1, this.atkiIndeksleri.length));
-    this.gonderInstanced = new THREE.InstancedMesh(gonderGeometri, gonderMateryali, Math.max(1, this.bayrakIndeksleri.length));
-    this.bayrakInstanced = new THREE.InstancedMesh(bayrakGeometri, bayrakMateryali, Math.max(1, this.bayrakIndeksleri.length));
+    this.altVucutInstanced = new THREE.InstancedMesh(
+      this.insanUretici.tribunAltVucutGeometrisiGetir(),
+      kumasMateryal,
+      toplamTaraftar,
+    );
+    this.govdeInstanced = new THREE.InstancedMesh(
+      this.insanUretici.tribunGovdeGeometrisiGetir(),
+      kumasMateryal,
+      toplamTaraftar,
+    );
+    this.basInstanced = new THREE.InstancedMesh(
+      this.insanUretici.tribunKafaGeometrisiGetir(),
+      yuzMateryal,
+      toplamTaraftar,
+    );
+    this.kisaSacInstanced = new THREE.InstancedMesh(
+      this.insanUretici.tribunKisaSacGeometrisiGetir(),
+      sacMateryal,
+      Math.max(1, this.kisaSacTaraftarlari.length),
+    );
+    this.topuzSacInstanced = new THREE.InstancedMesh(
+      this.insanUretici.tribunTopuzSacGeometrisiGetir(),
+      sacMateryal,
+      Math.max(1, this.topuzSacTaraftarlari.length),
+    );
+    this.kepInstanced = new THREE.InstancedMesh(
+      this.insanUretici.tribunKepGeometrisiGetir(),
+      kumasMateryal,
+      Math.max(1, this.kepTaraftarlari.length),
+    );
+    this.bereInstanced = new THREE.InstancedMesh(
+      this.insanUretici.tribunBereGeometrisiGetir(),
+      kumasMateryal,
+      Math.max(1, this.bereTaraftarlari.length),
+    );
+    this.solKolInstanced = new THREE.InstancedMesh(
+      this.insanUretici.tribunKolGeometrisiGetir(),
+      kumasMateryal,
+      toplamTaraftar,
+    );
+    this.sagKolInstanced = new THREE.InstancedMesh(
+      this.insanUretici.tribunKolGeometrisiGetir(),
+      kumasMateryal,
+      toplamTaraftar,
+    );
+    this.atkiInstanced = new THREE.InstancedMesh(
+      atkiGeometri,
+      atkiMateryali,
+      Math.max(1, this.atkiIndeksleri.length),
+    );
+    this.gonderInstanced = new THREE.InstancedMesh(
+      gonderGeometri,
+      gonderMateryali,
+      Math.max(1, this.bayrakIndeksleri.length),
+    );
+    this.bayrakInstanced = new THREE.InstancedMesh(
+      bayrakGeometri,
+      bayrakMateryali,
+      Math.max(1, this.bayrakIndeksleri.length),
+    );
 
     this.govdeInstanced.name = 'tribunSeyirciGovdeleri';
     this.atkiInstanced.name = 'tribunSeyirciAtkilari';
     this.bayrakInstanced.name = 'tribunSeyirciBayraklari';
 
-    const ciltPaleti = [0xf2c8a2, 0xe2aa80, 0xc68860, 0x9b6444, 0xead0b8];
+    const ciltPaleti = [0xf4cfb2, 0xe7b68e, 0xd49a72, 0xb87a56, 0xedd5c0];
+    const pantolonPaleti = [0x0f172a, 0x1e293b, 0x1e3a5f, 0x334155, 0x111827];
     const formaPaleti = [
       GALATASARAY_RENKLERI.HEX_KIRMIZI_ANA,
       GALATASARAY_RENKLERI.HEX_SARI_ANA,
@@ -266,12 +363,17 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
       0xf8fafc,
       0x1e293b,
     ];
+    const sacPaleti = [0x1c1411, 0x3b2618, 0x6b4426, 0xa87c42, 0x9ca3af];
     const geciciRenk = new THREE.Color();
 
     for (let i = 0; i < toplamTaraftar; i += 1) {
       const cilt = ciltPaleti[(i * 3) % ciltPaleti.length];
+      const pantolon = pantolonPaleti[(i * 2 + 1) % pantolonPaleti.length];
       const forma = formaPaleti[(i * 5 + 1) % formaPaleti.length];
-      const sapka = i % 2 === 0 ? GALATASARAY_RENKLERI.HEX_SARI_ANA : GALATASARAY_RENKLERI.HEX_KIRMIZI_ANA;
+      const t = this.taraftarlar[i];
+
+      geciciRenk.setHex(pantolon);
+      this.altVucutInstanced.setColorAt(i, geciciRenk);
 
       geciciRenk.setHex(forma);
       this.govdeInstanced.setColorAt(i, geciciRenk);
@@ -281,14 +383,32 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
       geciciRenk.setHex(cilt);
       this.basInstanced.setColorAt(i, geciciRenk);
 
-      geciciRenk.setHex(sapka);
-      this.sapkaInstanced.setColorAt(i, geciciRenk);
+      const sacRenk = sacPaleti[(i * 7) % sacPaleti.length];
+      const sapkaRenk = i % 2 === 0 ? GALATASARAY_RENKLERI.HEX_SARI_ANA : GALATASARAY_RENKLERI.HEX_KIRMIZI_ANA;
+
+      if (t.baslikKategori === 'kisa_sac') {
+        geciciRenk.setHex(sacRenk);
+        this.kisaSacInstanced.setColorAt(t.baslikAltIndeks, geciciRenk);
+      } else if (t.baslikKategori === 'topuz_sac') {
+        geciciRenk.setHex(sacRenk);
+        this.topuzSacInstanced.setColorAt(t.baslikAltIndeks, geciciRenk);
+      } else if (t.baslikKategori === 'kep') {
+        geciciRenk.setHex(sapkaRenk);
+        this.kepInstanced.setColorAt(t.baslikAltIndeks, geciciRenk);
+      } else {
+        geciciRenk.setHex(sapkaRenk);
+        this.bereInstanced.setColorAt(t.baslikAltIndeks, geciciRenk);
+      }
     }
 
     for (const inst of [
+      this.altVucutInstanced,
       this.govdeInstanced,
       this.basInstanced,
-      this.sapkaInstanced,
+      this.kisaSacInstanced,
+      this.topuzSacInstanced,
+      this.kepInstanced,
+      this.bereInstanced,
       this.solKolInstanced,
       this.sagKolInstanced,
     ]) {
@@ -298,9 +418,13 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     }
 
     this.anaGrup.add(
+      this.altVucutInstanced,
       this.govdeInstanced,
       this.basInstanced,
-      this.sapkaInstanced,
+      this.kisaSacInstanced,
+      this.topuzSacInstanced,
+      this.kepInstanced,
+      this.bereInstanced,
       this.solKolInstanced,
       this.sagKolInstanced,
       this.atkiInstanced,
@@ -308,7 +432,6 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
       this.bayrakInstanced,
     );
 
-    // Beste söyleyen seyircilerin kafalarının üzerinde süzülen 3 çeşit müzik notası ('♪', '♫', '♬')
     this.besteNotaInstancedlariniKur();
   }
 
@@ -316,7 +439,6 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     const semboller = ['♪', '♫', '♬'] as const;
     const renkler = [GALATASARAY_RENKLERI.SARI_ALTIN, '#ffffff', '#fb7185'] as const;
 
-    // Her açıdan okunabilmesi için 2 çapraz düzlemden oluşan nota geometrisi
     const notaGeometri = this.caprazNotaGeometrisiOlustur(0.46, 0.46);
     this.olusturulanGeometriler.push(notaGeometri);
 
@@ -346,7 +468,6 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
   private caprazNotaGeometrisiOlustur(genislik: number, yukseklik: number): THREE.BufferGeometry {
     const hw = genislik * 0.5;
     const hh = yukseklik * 0.5;
-    // İki dikey çapraz dörtgen (0° ve 90°) -> kameradan her açıda net nota görünümü
     const konumlar = new Float32Array([
       -hw, -hh, 0, hw, -hh, 0, hw, hh, 0, -hw, hh, 0,
       0, -hh, -hw, 0, -hh, hw, 0, hh, hw, 0, hh, -hw,
@@ -379,7 +500,6 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     baglam.textAlign = 'center';
     baglam.textBaseline = 'middle';
 
-    // Koyu kontur ile uzaktan net okunabilirlik
     baglam.strokeStyle = '#090d16';
     baglam.lineWidth = 10;
     baglam.strokeText(sembol, 64, 68);
@@ -458,55 +578,88 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
   }
 
   /**
-   * Havuz kenarlarında başhakem (starter) ve yürüyen kulvar/dönüş hakemlerini oluşturur.
+   * Havuz kenarlarında eklemli gerçekçi başhakem (starter), 4 yürüyen kulvar hakemi
+   * ve bitiş hakemini oluşturur.
    */
   private havuzKenariHakemleriniOlustur(): void {
-    const beyazTisort = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.55 });
-    const lacivertPantolon = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.72 });
-    const ciltMateryal = new THREE.MeshStandardMaterial({ color: 0xdeb08c, roughness: 0.52 });
     const kornaMateryal = new THREE.MeshStandardMaterial({
       color: GALATASARAY_RENKLERI.HEX_KIRMIZI_VURGU,
       roughness: 0.35,
-      metalness: 0.3,
+      metalness: 0.35,
     });
-    this.olusturulanMateryaller.push(beyazTisort, lacivertPantolon, ciltMateryal, kornaMateryal);
+    const panoMateryal = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.42,
+      metalness: 0.2,
+    });
+    const kagitMateryal = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc,
+      roughness: 0.65,
+    });
+    this.olusturulanMateryaller.push(kornaMateryal, panoMateryal, kagitMateryal);
 
-    // 1. Çıkış Başhakemi (Starter) - Çıkış bloklarının sol yanında
-    const basHakem = this.ayaktaInsanOlustur(beyazTisort, lacivertPantolon, ciltMateryal, beyazTisort);
-    basHakem.grup.name = 'havuzBasHakemi';
-    basHakem.grup.position.set(-9.15, GUVERTE_UST_Y, -16.15);
-    basHakem.grup.rotation.y = Math.PI * 0.45;
-    this.starterSagKol = basHakem.sagKol;
+    const kornaGeometri = new THREE.CylinderGeometry(0.024, 0.044, 0.22, 12);
+    const kronometrePanoGeo = new THREE.BoxGeometry(0.20, 0.26, 0.016);
+    const kagitGeo = new THREE.BoxGeometry(0.17, 0.22, 0.004);
+    this.olusturulanGeometriler.push(kornaGeometri, kronometrePanoGeo, kagitGeo);
 
-    const kornaGeometri = new THREE.CylinderGeometry(0.032, 0.045, 0.24, 8);
-    this.olusturulanGeometriler.push(kornaGeometri);
+    // 1. Çıkış Başhakemi (Starter) - kır saçlı ve kep takmış deneyimli başhakem
+    this.starterHakem = this.insanUretici.ayaktaInsanOlustur({
+      ciltRengi: 0xdfb28c,
+      sacRengi: 0x94a3b8,
+      ustAnaRenk: 0xf8fafc,
+      ustIkinciRenk: 0xf8fafc,
+      pantolonRengi: 0x0f172a,
+      ayakkabiRengi: 0xe2e8f0,
+      sakalTipi: 'biyik',
+      sacTipi: 'kep',
+      kiyafetTipi: 'hakem_polo',
+      kisaKolMu: true,
+      olcek: 1.03,
+    });
+    this.starterHakem.grup.name = 'havuzBasHakemi';
+    this.starterHakem.grup.position.set(-9.15, GUVERTE_UST_Y, -16.15);
+    this.starterHakem.grup.rotation.y = Math.PI * 0.45;
+    this.starterHakem.sagDirsek.rotation.x = -0.35;
+
     const kornaMesh = new THREE.Mesh(kornaGeometri, kornaMateryal);
-    kornaMesh.position.set(0, -0.52, 0.08);
-    kornaMesh.rotation.x = Math.PI * 0.5;
-    this.starterSagKol.add(kornaMesh);
-    this.anaGrup.add(basHakem.grup);
+    kornaMesh.position.set(0, 0.02, 0.09);
+    kornaMesh.rotation.x = Math.PI * 0.48;
+    this.starterHakem.sagElNoktasi.add(kornaMesh);
+    this.anaGrup.add(this.starterHakem.grup);
 
-    // 2. 4 Yürüyen Kulvar / Stil Hakemi (sol ve sağ havuz kenarlarında devriye)
+    // 2. 4 Yürüyen Kulvar / Stil Hakemi (farklı yüz, saç/kep profilleriyle)
     const yuruyusTanimlari = [
-      { x: -8.95, minZ: -13.0, makZ: -1.5, z: -9.0, yon: 1 as const },
-      { x: -8.95, minZ: 1.5, makZ: 13.0, z: 6.0, yon: -1 as const },
-      { x: 8.95, minZ: -13.0, makZ: -1.5, z: -4.0, yon: -1 as const },
-      { x: 8.95, minZ: 1.5, makZ: 13.0, z: 9.0, yon: 1 as const },
+      { x: -8.95, minZ: -13.0, makZ: -1.5, z: -9.0, yon: 1 as const, havuzYon: 1 as const },
+      { x: -8.95, minZ: 1.5, makZ: 13.0, z: 6.0, yon: -1 as const, havuzYon: 1 as const },
+      { x: 8.95, minZ: -13.0, makZ: -1.5, z: -4.0, yon: -1 as const, havuzYon: -1 as const },
+      { x: 8.95, minZ: 1.5, makZ: 13.0, z: 9.0, yon: 1 as const, havuzYon: -1 as const },
+    ];
+    const hakemProfilleri: InsanGorunumSecenekleri[] = [
+      { ciltRengi: 0xe8bc96, sacRengi: 0x2c1b12, sacTipi: 'topuz', sakalTipi: 'yok', olcek: 0.96 },
+      { ciltRengi: 0xd9a178, sacRengi: 0x4b3222, sacTipi: 'kep', sakalTipi: 'kirli', olcek: 1.01 },
+      { ciltRengi: 0xf1ccb0, sacRengi: 0x8a5b32, sacTipi: 'topuz', sakalTipi: 'yok', olcek: 0.95 },
+      { ciltRengi: 0xc58962, sacRengi: 0x1a1412, sacTipi: 'kisa', sakalTipi: 'yok', olcek: 1.0 },
     ];
 
     for (let i = 0; i < yuruyusTanimlari.length; i += 1) {
       const tanim = yuruyusTanimlari[i];
-      const fig = this.ayaktaInsanOlustur(beyazTisort, lacivertPantolon, ciltMateryal, beyazTisort);
-      fig.grup.name = `havuzKenarHakemi_${i + 1}`;
-      fig.grup.position.set(tanim.x, GUVERTE_UST_Y, tanim.z);
-      this.anaGrup.add(fig.grup);
+      const profil = hakemProfilleri[i];
+      const figur = this.insanUretici.ayaktaInsanOlustur({
+        ...profil,
+        ustAnaRenk: 0xf8fafc,
+        ustIkinciRenk: i % 2 === 0 ? 0xf8fafc : 0x0f172a,
+        pantolonRengi: 0x0f172a,
+        ayakkabiRengi: 0xf8fafc,
+        kiyafetTipi: 'hakem_polo',
+        kisaKolMu: true,
+      });
+      figur.grup.name = `havuzKenarHakemi_${i + 1}`;
+      figur.grup.position.set(tanim.x, GUVERTE_UST_Y, tanim.z);
+      this.anaGrup.add(figur.grup);
 
       this.yuruyenHakemler.push({
-        grup: fig.grup,
-        solKol: fig.solKol,
-        sagKol: fig.sagKol,
-        solBacak: fig.solBacak,
-        sagBacak: fig.sagBacak,
+        figur,
         sabitX: tanim.x,
         minZ: tanim.minZ,
         makZ: tanim.makZ,
@@ -514,20 +667,44 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
         yonZ: tanim.yon,
         hiz: 1.05 + i * 0.12,
         adimFazi: i * 1.4,
+        havuzYonIsareti: tanim.havuzYon,
       });
     }
 
-    // 3. Bitiş / Dönüş hakemi (+Z ucunda)
-    const bitisHakemi = this.ayaktaInsanOlustur(beyazTisort, lacivertPantolon, ciltMateryal, beyazTisort);
-    bitisHakemi.grup.name = 'havuzBitisHakemi';
-    bitisHakemi.grup.position.set(-4.6, GUVERTE_UST_Y, 16.95);
-    bitisHakemi.grup.rotation.y = Math.PI;
-    this.anaGrup.add(bitisHakemi.grup);
+    // 3. Bitiş / Dönüş hakemi (+Z ucunda, elinde not panosu ile)
+    this.bitisHakem = this.insanUretici.ayaktaInsanOlustur({
+      ciltRengi: 0xe3b18a,
+      sacRengi: 0x2f1f16,
+      ustAnaRenk: 0xf8fafc,
+      ustIkinciRenk: 0x0f172a,
+      pantolonRengi: 0x0f172a,
+      ayakkabiRengi: 0xe2e8f0,
+      sakalTipi: 'yok',
+      sacTipi: 'kisa',
+      kiyafetTipi: 'hakem_polo',
+      kisaKolMu: true,
+      olcek: 0.99,
+    });
+    this.bitisHakem.grup.name = 'havuzBitisHakemi';
+    this.bitisHakem.grup.position.set(-4.6, GUVERTE_UST_Y, 16.95);
+    this.bitisHakem.grup.rotation.y = Math.PI;
+    this.bitisHakem.solOmuz.rotation.x = -0.36;
+    this.bitisHakem.solDirsek.rotation.x = -0.82;
+
+    const bitisPano = new THREE.Mesh(kronometrePanoGeo, panoMateryal);
+    const bitisKagit = new THREE.Mesh(kagitGeo, kagitMateryal);
+    bitisKagit.position.z = 0.01;
+    bitisPano.add(bitisKagit);
+    bitisPano.position.set(0, 0.02, 0.08);
+    bitisPano.rotation.x = -0.35;
+    this.bitisHakem.solElNoktasi.add(bitisPano);
+
+    this.anaGrup.add(this.bitisHakem.grup);
   }
 
   /**
    * Sol güvertede (X = -10.9, Z = 10.5) 10m tramplen iniş bölgesini gören
-   * örtülü Puan Veren Hakemler Masası ve 5 puan hakemini oluşturur.
+   * örtülü Puan Veren Hakemler Masası ve 5 gerçekçi oturan puan hakemini oluşturur.
    */
   private puanHakemleriMasasiniOlustur(): void {
     const masaGrubu = new THREE.Group();
@@ -538,26 +715,24 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     const ortuDokusu = this.hakemMasaOrtusuDokusuOlustur();
     const ortuMateryal = new THREE.MeshStandardMaterial({ map: ortuDokusu, roughness: 0.55 });
     const metalMateryal = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.7 });
-    const lacivertCeket = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.62 });
-    const beyazGomlek = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
-    const ciltMateryal = new THREE.MeshStandardMaterial({ color: 0xdfb18a, roughness: 0.52 });
+    const sandalyeMateryal = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.58 });
 
     this.olusturulanMateryaller.push(
       masaUstMateryal,
       ortuMateryal,
       metalMateryal,
-      lacivertCeket,
-      beyazGomlek,
-      ciltMateryal,
+      sandalyeMateryal,
     );
 
     const tablaGeometri = new THREE.BoxGeometry(0.92, 0.06, 5.4);
     const ortuOnGeometri = new THREE.BoxGeometry(0.04, 0.76, 5.36);
     const ayakGeometri = new THREE.CylinderGeometry(0.025, 0.025, 0.76, 8);
-    const sandalyeOturakGeo = new THREE.BoxGeometry(0.42, 0.06, 0.42);
-    const sandalyeSirtGeo = new THREE.BoxGeometry(0.06, 0.46, 0.42);
-    const sapGeometri = new THREE.CylinderGeometry(0.012, 0.012, 0.34, 6);
-    const tabelaGeometri = new THREE.BoxGeometry(0.04, 0.34, 0.46);
+    const sandalyeOturakGeo = new THREE.BoxGeometry(0.44, 0.055, 0.44);
+    const sandalyeSirtGeo = new THREE.BoxGeometry(0.055, 0.48, 0.44);
+    const sandalyeAyakGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.46, 6);
+    const sapGeometri = new THREE.CylinderGeometry(0.012, 0.012, 0.34, 8);
+    // Geniş yüzey (+Z / -Z) yerel okuma ekseninde -> kol havaya kalkınca (+X) havuza düz okunur
+    const tabelaGeometri = new THREE.BoxGeometry(0.44, 0.32, 0.035);
 
     this.olusturulanGeometriler.push(
       tablaGeometri,
@@ -565,6 +740,7 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
       ayakGeometri,
       sandalyeOturakGeo,
       sandalyeSirtGeo,
+      sandalyeAyakGeo,
       sapGeometri,
       tabelaGeometri,
     );
@@ -586,49 +762,57 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
       masaGrubu.add(ayak);
     }
 
-    // 5 oturan puan hakemi (H1 .. H5) ve ellerinde puan tabelaları
-    const govdeGeo = new THREE.BoxGeometry(0.38, 0.54, 0.28);
-    const basGeo = new THREE.SphereGeometry(0.135, 10, 10);
-    const bacakGeo = new THREE.CapsuleGeometry(0.065, 0.38, 4, 6);
-    const kolGeo = new THREE.CapsuleGeometry(0.052, 0.34, 4, 6);
-    this.olusturulanGeometriler.push(govdeGeo, basGeo, bacakGeo, kolGeo);
+    const hakemProfilleri: InsanGorunumSecenekleri[] = [
+      { ciltRengi: 0xdfb18a, sacRengi: 0x1e1612, sacTipi: 'kisa', sakalTipi: 'kirli' },
+      { ciltRengi: 0xf1cbae, sacRengi: 0x4c2d1b, sacTipi: 'topuz', sakalTipi: 'yok' },
+      { ciltRengi: 0xd49d74, sacRengi: 0x94a3b8, sacTipi: 'kisa', sakalTipi: 'biyik' },
+      { ciltRengi: 0xebc29f, sacRengi: 0x6f4b2c, sacTipi: 'topuz', sakalTipi: 'yok' },
+      { ciltRengi: 0xc88d65, sacRengi: 0x261a14, sacTipi: 'kisa', sakalTipi: 'yok' },
+    ];
 
     for (let h = 0; h < 5; h += 1) {
       const z = -2.0 + h * 1.0;
 
-      const oturak = new THREE.Mesh(sandalyeOturakGeo, lacivertCeket);
-      oturak.position.set(-0.62, 0.46, z);
-      const sirt = new THREE.Mesh(sandalyeSirtGeo, lacivertCeket);
-      sirt.position.set(-0.82, 0.69, z);
+      const oturak = new THREE.Mesh(sandalyeOturakGeo, sandalyeMateryal);
+      oturak.position.set(-0.66, 0.46, z);
+      const sirt = new THREE.Mesh(sandalyeSirtGeo, sandalyeMateryal);
+      sirt.position.set(-0.86, 0.70, z);
       masaGrubu.add(oturak, sirt);
 
-      const hakemGrup = new THREE.Group();
-      hakemGrup.position.set(-0.58, 0.49, z);
-
-      const govde = new THREE.Mesh(govdeGeo, lacivertCeket);
-      govde.position.set(0, 0.30, 0);
-      const bas = new THREE.Mesh(basGeo, ciltMateryal);
-      bas.position.set(0, 0.72, 0);
-
-      for (const bZ of [-0.10, 0.10]) {
-        const bacak = new THREE.Mesh(bacakGeo, lacivertCeket);
-        bacak.position.set(0.20, 0.02, bZ);
-        bacak.rotation.z = Math.PI * 0.48;
-        hakemGrup.add(bacak);
+      for (const [sx, sz] of [
+        [-0.84, z - 0.18],
+        [-0.84, z + 0.18],
+        [-0.48, z - 0.18],
+        [-0.48, z + 0.18],
+      ] as const) {
+        const sAyak = new THREE.Mesh(sandalyeAyakGeo, metalMateryal);
+        sAyak.position.set(sx, 0.23, sz);
+        masaGrubu.add(sAyak);
       }
 
-      const solKol = new THREE.Mesh(kolGeo, beyazGomlek);
-      solKol.position.set(0.14, 0.36, -0.22);
-      solKol.rotation.z = Math.PI * 0.35;
+      const profil = hakemProfilleri[h];
+      const figur = this.insanUretici.oturanInsanOlustur({
+        ...profil,
+        ustAnaRenk: 0x0f172a,
+        ustIkinciRenk: GALATASARAY_RENKLERI.HEX_SARI_ANA,
+        pantolonRengi: 0x0f172a,
+        ayakkabiRengi: 0x111827,
+        kiyafetTipi: 'hakem_ceket',
+        kisaKolMu: false,
+        olcek: 0.98,
+      });
+      figur.grup.name = `puanHakemi_${h + 1}`;
+      // Sandalyeye oturup +X (masa ve havuz) yönüne bakacak biçimde hizala
+      figur.grup.position.set(-0.66, 0.485, z);
+      figur.grup.rotation.y = Math.PI * 0.5;
 
-      const sagKolPivot = new THREE.Group();
-      sagKolPivot.position.set(0.06, 0.50, 0.22);
-      const sagKolMesh = new THREE.Mesh(kolGeo, beyazGomlek);
-      sagKolMesh.position.set(0.16, -0.14, 0);
-      sagKolMesh.rotation.z = Math.PI * 0.3;
+      // Sol el masanın üzerinde durur
+      figur.solOmuz.rotation.x = -0.52;
+      figur.solDirsek.rotation.x = -0.68;
 
-      const sapMesh = new THREE.Mesh(sapGeometri, metalMateryal);
-      sapMesh.position.set(0.28, -0.02, 0);
+      // Sağ el puan tabelasını tutar
+      figur.sagOmuz.rotation.x = -0.45;
+      figur.sagDirsek.rotation.x = -0.65;
 
       const tabelaTuval = document.createElement('canvas');
       tabelaTuval.width = 128;
@@ -648,15 +832,23 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
       });
       this.olusturulanMateryaller.push(tabelaMateryal);
 
-      const tabelaMesh = new THREE.Mesh(tabelaGeometri, tabelaMateryal);
-      tabelaMesh.position.set(0.28, 0.26, 0);
+      const tabelaTutucu = new THREE.Group();
+      tabelaTutucu.position.set(0, 0.02, 0.02);
+      // Kol yukarı kalktığında tabelanın tam dik durması için el bileği telafisi
+      tabelaTutucu.rotation.x = 2.55;
 
-      sagKolPivot.add(sagKolMesh, sapMesh, tabelaMesh);
-      hakemGrup.add(govde, bas, solKol, sagKolPivot);
-      masaGrubu.add(hakemGrup);
+      const sapMesh = new THREE.Mesh(sapGeometri, metalMateryal);
+      sapMesh.position.set(0, 0.14, 0);
+      const tabelaMesh = new THREE.Mesh(tabelaGeometri, tabelaMateryal);
+      tabelaMesh.position.set(0, 0.36, 0);
+
+      tabelaTutucu.add(sapMesh, tabelaMesh);
+      figur.sagElNoktasi.add(tabelaTutucu);
+      masaGrubu.add(figur.grup);
 
       const kayit: PuanHakemi = {
-        sagKol: sagKolPivot,
+        figur,
+        faz: h * 0.9,
         tabelaTuval,
         tabelaBaglam,
         tabelaDoku,
@@ -725,53 +917,72 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
 
   /**
    * Sağ güvertede ve çıkış alanında Galatasaray eşofmanlı, elinde taktik panosu ve
-   * kronometre tutan 4 adet Yüzücü Antrenörü oluşturur.
+   * kronometre tutan 4 adet gerçekçi Yüzücü Antrenörü oluşturur.
    */
   private yuzucuAntrenorleriniOlustur(): void {
-    const gsCeket = new THREE.MeshStandardMaterial({
-      color: GALATASARAY_RENKLERI.HEX_KIRMIZI_ANA,
-      roughness: 0.45,
-    });
-    const esofmanAlt = new THREE.MeshStandardMaterial({
-      color: GALATASARAY_RENKLERI.HEX_KARBON_ANTRASIT,
-      roughness: 0.68,
-    });
-    const cilt = new THREE.MeshStandardMaterial({ color: 0xdca580, roughness: 0.52 });
-    const gsSapka = new THREE.MeshStandardMaterial({
+    const panoMateryal = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35 });
+    const kagitMateryal = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.55 });
+    const kronometreMat = new THREE.MeshStandardMaterial({
       color: GALATASARAY_RENKLERI.HEX_SARI_ANA,
-      roughness: 0.42,
+      roughness: 0.3,
+      metalness: 0.5,
     });
-    const panoMateryal = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35 });
+    this.olusturulanMateryaller.push(panoMateryal, kagitMateryal, kronometreMat);
 
-    this.olusturulanMateryaller.push(gsCeket, esofmanAlt, cilt, gsSapka, panoMateryal);
+    const panoGeometri = new THREE.BoxGeometry(0.24, 0.32, 0.018);
+    const panoSayfaGeo = new THREE.BoxGeometry(0.20, 0.27, 0.004);
+    const kronometreGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.015, 12);
+    kronometreGeo.rotateX(Math.PI * 0.5);
+    this.olusturulanGeometriler.push(panoGeometri, panoSayfaGeo, kronometreGeo);
 
-    const panoGeometri = new THREE.BoxGeometry(0.24, 0.32, 0.025);
-    this.olusturulanGeometriler.push(panoGeometri);
-
+    // 2. antrenör cankurtaran kulesi (9.35, -2.5) ile çakışmaması için Z = -6.2'ye alındı
     const konumlar = [
       { x: 9.45, z: -12.5, rotY: -Math.PI * 0.5 },
-      { x: 9.45, z: -2.5, rotY: -Math.PI * 0.5 },
+      { x: 9.45, z: -6.2, rotY: -Math.PI * 0.5 },
       { x: 9.45, z: 7.5, rotY: -Math.PI * 0.5 },
       { x: 5.5, z: -18.2, rotY: 0 },
+    ];
+    const antrenorProfilleri: InsanGorunumSecenekleri[] = [
+      { ciltRengi: 0xdca580, sacRengi: 0x261812, sacTipi: 'kep', sakalTipi: 'kirli', olcek: 1.03 },
+      { ciltRengi: 0xe6ba95, sacRengi: 0x4b301d, sacTipi: 'topuz', sakalTipi: 'yok', olcek: 0.97 },
+      { ciltRengi: 0xc78d66, sacRengi: 0x1a1412, sacTipi: 'kisa', sakalTipi: 'biyik', olcek: 1.01 },
+      { ciltRengi: 0xd9a27b, sacRengi: 0x6c4c2f, sacTipi: 'kep', sakalTipi: 'kirli', olcek: 1.0 },
     ];
 
     for (let i = 0; i < konumlar.length; i += 1) {
       const k = konumlar[i];
-      const fig = this.ayaktaInsanOlustur(gsCeket, esofmanAlt, cilt, gsSapka);
-      fig.grup.name = `galatasarayAntrenoru_${i + 1}`;
-      fig.grup.position.set(k.x, GUVERTE_UST_Y, k.z);
-      fig.grup.rotation.y = k.rotY;
+      const profil = antrenorProfilleri[i];
+      const figur = this.insanUretici.ayaktaInsanOlustur({
+        ...profil,
+        ustAnaRenk: GALATASARAY_RENKLERI.HEX_KIRMIZI_ANA,
+        ustIkinciRenk: GALATASARAY_RENKLERI.HEX_SARI_ANA,
+        pantolonRengi: GALATASARAY_RENKLERI.HEX_KARBON_ANTRASIT,
+        ayakkabiRengi: 0xf8fafc,
+        kiyafetTipi: 'gs_esofman',
+        kisaKolMu: false,
+      });
+      figur.grup.name = `galatasarayAntrenoru_${i + 1}`;
+      figur.grup.position.set(k.x, GUVERTE_UST_Y, k.z);
+      figur.grup.rotation.y = k.rotY;
+
+      figur.solOmuz.rotation.x = -0.35;
+      figur.solDirsek.rotation.x = -0.88;
 
       const taktikPano = new THREE.Mesh(panoGeometri, panoMateryal);
-      taktikPano.position.set(0, -0.46, 0.14);
-      taktikPano.rotation.x = -Math.PI * 0.32;
-      fig.solKol.add(taktikPano);
+      const kagit = new THREE.Mesh(panoSayfaGeo, kagitMateryal);
+      kagit.position.z = 0.011;
+      taktikPano.add(kagit);
+      taktikPano.position.set(0, 0.02, 0.08);
+      taktikPano.rotation.x = -0.38;
+      figur.solElNoktasi.add(taktikPano);
 
-      this.anaGrup.add(fig.grup);
+      const kronometre = new THREE.Mesh(kronometreGeo, kronometreMat);
+      kronometre.position.set(0, 0.02, 0.03);
+      figur.sagElNoktasi.add(kronometre);
+
+      this.anaGrup.add(figur.grup);
       this.antrenorler.push({
-        grup: fig.grup,
-        solKol: fig.solKol,
-        sagKol: fig.sagKol,
+        figur,
         baslangicX: k.x,
         baslangicZ: k.z,
         faz: i * 1.6,
@@ -779,62 +990,36 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     }
   }
 
-  private ayaktaInsanOlustur(
-    ustMateryal: THREE.Material,
-    altMateryal: THREE.Material,
-    ciltMateryal: THREE.Material,
-    sapkaMateryal: THREE.Material,
-  ): {
-    grup: THREE.Group;
-    solKol: THREE.Group;
-    sagKol: THREE.Group;
-    solBacak: THREE.Group;
-    sagBacak: THREE.Group;
-  } {
-    const grup = new THREE.Group();
+  /**
+   * Sağ güvertedeki cankurtaran kulesi koltuğuna (9.39, GUVERTE_UST_Y + 1.59, -2.5)
+   * güneş gözlüklü, kepli ve havuzu tarayan gerçekçi bir cankurtaran yerleştirir.
+   */
+  private cankurtaraniOlustur(): void {
+    this.cankurtaran = this.insanUretici.oturanInsanOlustur({
+      ciltRengi: 0xd99e74,
+      sacRengi: 0x3b2618,
+      ustAnaRenk: GALATASARAY_RENKLERI.HEX_KIRMIZI_VURGU,
+      ustIkinciRenk: GALATASARAY_RENKLERI.HEX_SARI_ANA,
+      pantolonRengi: GALATASARAY_RENKLERI.HEX_SARI_ANA,
+      ayakkabiRengi: 0xf8fafc,
+      sakalTipi: 'yok',
+      sacTipi: 'kep',
+      gunesGozluguMu: true,
+      kiyafetTipi: 'cankurtaran',
+      kisaKolMu: true,
+      olcek: 1.0,
+    });
+    this.cankurtaran.grup.name = 'havuzCankurtarani';
+    // Koltuk oturak üstü = GUVERTE_UST_Y + 1.56 + 0.03 = 1.765; havuza (-X) bakar
+    this.cankurtaran.grup.position.set(9.39, GUVERTE_UST_Y + 1.59, -2.5);
+    this.cankurtaran.grup.rotation.y = -Math.PI * 0.5;
 
-    const govdeGeo = new THREE.BoxGeometry(0.38, 0.56, 0.22);
-    const basGeo = new THREE.SphereGeometry(0.135, 10, 10);
-    const sapkaGeo = new THREE.CylinderGeometry(0.14, 0.145, 0.08, 10);
-    const uzuvGeo = new THREE.CapsuleGeometry(0.056, 0.42, 4, 6);
-    const bacakGeo = new THREE.CapsuleGeometry(0.068, 0.62, 4, 6);
-    this.olusturulanGeometriler.push(govdeGeo, basGeo, sapkaGeo, uzuvGeo, bacakGeo);
+    this.cankurtaran.solOmuz.rotation.x = -0.35;
+    this.cankurtaran.solDirsek.rotation.x = -0.62;
+    this.cankurtaran.sagOmuz.rotation.x = -0.40;
+    this.cankurtaran.sagDirsek.rotation.x = -0.78;
 
-    const solBacak = new THREE.Group();
-    solBacak.position.set(-0.10, 0.78, 0);
-    const solBacakMesh = new THREE.Mesh(bacakGeo, altMateryal);
-    solBacakMesh.position.set(0, -0.39, 0);
-    solBacak.add(solBacakMesh);
-
-    const sagBacak = new THREE.Group();
-    sagBacak.position.set(0.10, 0.78, 0);
-    const sagBacakMesh = new THREE.Mesh(bacakGeo, altMateryal);
-    sagBacakMesh.position.set(0, -0.39, 0);
-    sagBacak.add(sagBacakMesh);
-
-    const govde = new THREE.Mesh(govdeGeo, ustMateryal);
-    govde.position.set(0, 1.06, 0);
-
-    const bas = new THREE.Mesh(basGeo, ciltMateryal);
-    bas.position.set(0, 1.48, 0);
-
-    const sapka = new THREE.Mesh(sapkaGeo, sapkaMateryal);
-    sapka.position.set(0, 1.59, 0);
-
-    const solKol = new THREE.Group();
-    solKol.position.set(-0.24, 1.28, 0);
-    const solKolMesh = new THREE.Mesh(uzuvGeo, ustMateryal);
-    solKolMesh.position.set(0, -0.24, 0);
-    solKol.add(solKolMesh);
-
-    const sagKol = new THREE.Group();
-    sagKol.position.set(0.24, 1.28, 0);
-    const sagKolMesh = new THREE.Mesh(uzuvGeo, ustMateryal);
-    sagKolMesh.position.set(0, -0.24, 0);
-    sagKol.add(sagKolMesh);
-
-    grup.add(solBacak, sagBacak, govde, bas, sapka, solKol, sagKol);
-    return { grup, solKol, sagKol, solBacak, sagBacak };
+    this.anaGrup.add(this.cankurtaran.grup);
   }
 
   /**
@@ -856,8 +1041,8 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
   }
 
   /**
-   * Her karede seyircilerin atkı/bayrak sallamasını, yükselen beste notalarını,
-   * yürüyen hakemleri, hakem masası tabelalarını ve antrenörleri animasyonlu günceller.
+   * Her karede seyircileri, atkıları, bayrakları, beste notalarını, yürüyen hakemleri,
+   * puan hakemlerini, antrenörleri ve cankurtaranı animasyonlu günceller.
    */
   public guncelle(dt: number, gecenSure: number, coskuSeviyesi = 0.4): void {
     if (this.temizlendiMi) {
@@ -867,96 +1052,124 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     const sinirliDt = Math.min(Math.max(dt, 0), 0.05);
     const cosku = THREE.MathUtils.clamp(coskuSeviyesi, 0.15, 1.0);
 
-    // 1. Tribün seyircileri (gövde, baş, şapka, kollar, atkılar, bayraklar, notalar)
+    // 1. Tribün seyircileri (alt vücut, anatomik gövde, baş, saç/kep/bere, kollar, aksesuarlar)
     for (let i = 0; i < this.taraftarlar.length; i += 1) {
       const t = this.taraftarlar[i];
       const havuzaBakisY = t.tarafIsaret < 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
+      const cosY = Math.cos(havuzaBakisY);
+      const sinY = Math.sin(havuzaBakisY);
       const salinimFazi = gecenSure * t.hiz * (0.75 + cosku * 0.55) + t.faz;
-      const ziplama = Math.max(0, Math.sin(salinimFazi)) * 0.08 * cosku * t.olcek;
+      const ziplama = Math.max(0, Math.sin(salinimFazi)) * 0.07 * cosku * t.olcek;
+      const yanSalinim = Math.sin(salinimFazi * 0.5) * 0.055;
 
-      // Gövde
-      this.geciciKonum.set(t.x, t.y + 0.27 * t.olcek + ziplama, t.z);
-      this.geciciEuler.set(0, havuzaBakisY, Math.sin(salinimFazi * 0.5) * 0.06);
+      // Alt vücut & ayakkabılar basamak koltuğuna oturur
+      this.geciciKonum.set(t.x, t.y + ziplama * 0.20, t.z);
+      this.geciciEuler.set(0, havuzaBakisY, 0);
       this.geciciRotasyon.setFromEuler(this.geciciEuler);
       this.geciciOlcek.setScalar(t.olcek);
       this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
+      this.altVucutInstanced.setMatrixAt(i, this.geciciMatris);
+
+      // Anatomik üst gövde (pelvis üstünden omuza)
+      this.geciciKonum.set(t.x, t.y + 0.05 * t.olcek + ziplama, t.z);
+      this.geciciEuler.set(0.05 * Math.sin(salinimFazi), havuzaBakisY, yanSalinim);
+      this.geciciRotasyon.setFromEuler(this.geciciEuler);
+      this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
       this.govdeInstanced.setMatrixAt(i, this.geciciMatris);
 
-      // Baş & şapka
-      this.geciciKonum.set(t.x, t.y + 0.67 * t.olcek + ziplama, t.z);
+      // Baş ve saç/kep/bere aynı kafa merkezine hizalıdır
+      this.geciciKonum.set(t.x, t.y + 0.72 * t.olcek + ziplama, t.z);
+      this.geciciEuler.set(Math.sin(salinimFazi * 0.7) * 0.07, havuzaBakisY, yanSalinim * 0.8);
+      this.geciciRotasyon.setFromEuler(this.geciciEuler);
       this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
       this.basInstanced.setMatrixAt(i, this.geciciMatris);
 
-      this.geciciKonum.set(t.x, t.y + 0.78 * t.olcek + ziplama, t.z);
-      this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
-      this.sapkaInstanced.setMatrixAt(i, this.geciciMatris);
+      if (t.baslikKategori === 'kisa_sac') {
+        this.kisaSacInstanced.setMatrixAt(t.baslikAltIndeks, this.geciciMatris);
+      } else if (t.baslikKategori === 'topuz_sac') {
+        this.topuzSacInstanced.setMatrixAt(t.baslikAltIndeks, this.geciciMatris);
+      } else if (t.baslikKategori === 'kep') {
+        this.kepInstanced.setMatrixAt(t.baslikAltIndeks, this.geciciMatris);
+      } else {
+        this.bereInstanced.setMatrixAt(t.baslikAltIndeks, this.geciciMatris);
+      }
 
-      // Kollar & Rol aksesuarı
+      // Sol (-0.215) ve sağ (+0.215) omuz dünya konumları (YXZ rotasyon ile tam eklem hareketi)
+      const omuzY = t.y + 0.49 * t.olcek + ziplama;
+      const solOmuzX = t.x + (-0.215 * t.olcek) * cosY;
+      const solOmuzZ = t.z - (-0.215 * t.olcek) * sinY;
+      const sagOmuzX = t.x + (0.215 * t.olcek) * cosY;
+      const sagOmuzZ = t.z - (0.215 * t.olcek) * sinY;
       const icYon = -t.tarafIsaret;
+
       if (t.rol === 'atki') {
-        const yukariAci = 2.4 + Math.sin(salinimFazi) * 0.24;
-        this.geciciEuler.set(0, havuzaBakisY, yukariAci);
+        const yukariX = -2.35 + Math.sin(salinimFazi) * 0.22;
+        this.geciciEuler.set(yukariX, havuzaBakisY, 0.28);
         this.geciciRotasyon.setFromEuler(this.geciciEuler);
-        this.geciciKonum.set(t.x + icYon * 0.08, t.y + 0.66 * t.olcek + ziplama, t.z - 0.24);
+        this.geciciKonum.set(solOmuzX, omuzY, solOmuzZ);
         this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
         this.solKolInstanced.setMatrixAt(i, this.geciciMatris);
 
-        this.geciciEuler.set(0, havuzaBakisY, -yukariAci);
+        this.geciciEuler.set(yukariX, havuzaBakisY, -0.28);
         this.geciciRotasyon.setFromEuler(this.geciciEuler);
-        this.geciciKonum.set(t.x + icYon * 0.08, t.y + 0.66 * t.olcek + ziplama, t.z + 0.24);
+        this.geciciKonum.set(sagOmuzX, omuzY, sagOmuzZ);
         this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
         this.sagKolInstanced.setMatrixAt(i, this.geciciMatris);
 
-        // Baş üstünde dönen/dalgalanan GS atkısı
-        const atkiYatay = Math.sin(salinimFazi * 1.4) * 0.28;
-        this.geciciEuler.set(atkiYatay, havuzaBakisY + Math.cos(salinimFazi) * 0.35, Math.sin(salinimFazi) * 0.22);
+        // Baş üstünde tutulan GS atkısı
+        const atkiYatay = Math.sin(salinimFazi * 1.4) * 0.24;
+        this.geciciEuler.set(atkiYatay, havuzaBakisY + Math.cos(salinimFazi) * 0.25, Math.sin(salinimFazi) * 0.20);
         this.geciciRotasyon.setFromEuler(this.geciciEuler);
-        this.geciciKonum.set(t.x + icYon * 0.16, t.y + 0.92 * t.olcek + ziplama + Math.sin(salinimFazi) * 0.08, t.z);
-        this.geciciOlcek.setScalar(t.olcek);
+        this.geciciKonum.set(
+          t.x + icYon * 0.24 * t.olcek,
+          t.y + 0.90 * t.olcek + ziplama + Math.sin(salinimFazi) * 0.08,
+          t.z,
+        );
         this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
         this.atkiInstanced.setMatrixAt(t.altRolIndeks, this.geciciMatris);
       } else if (t.rol === 'bayrak') {
-        const sallama = Math.sin(salinimFazi * 1.25) * 0.42;
-        this.geciciEuler.set(sallama, havuzaBakisY, 0.3);
+        const sallama = Math.sin(salinimFazi * 1.25) * 0.36;
+        // Sol kol rahat tezahürat, sağ kol bayrak sapını tutar
+        this.geciciEuler.set(-0.65 + sallama * 0.3, havuzaBakisY, 0.14);
         this.geciciRotasyon.setFromEuler(this.geciciEuler);
-        this.geciciKonum.set(t.x + icYon * 0.08, t.y + 0.45 * t.olcek + ziplama, t.z - 0.22);
+        this.geciciKonum.set(solOmuzX, omuzY, solOmuzZ);
         this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
         this.solKolInstanced.setMatrixAt(i, this.geciciMatris);
 
-        this.geciciEuler.set(sallama, havuzaBakisY, -1.7);
+        this.geciciEuler.set(-1.92 + sallama * 0.65, havuzaBakisY, -0.15);
         this.geciciRotasyon.setFromEuler(this.geciciEuler);
-        this.geciciKonum.set(t.x + icYon * 0.14, t.y + 0.62 * t.olcek + ziplama, t.z + 0.22);
+        this.geciciKonum.set(sagOmuzX, omuzY, sagOmuzZ);
         this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
         this.sagKolInstanced.setMatrixAt(i, this.geciciMatris);
 
-        // Gönder + Dalgalanan GS bayrağı
-        this.geciciEuler.set(sallama * 0.75, havuzaBakisY, 0.12);
+        // Gönder + Dalgalanan GS bayrağı sağ el ucunda
+        this.geciciEuler.set(sallama * 0.65, havuzaBakisY, 0.10);
         this.geciciRotasyon.setFromEuler(this.geciciEuler);
-        this.geciciKonum.set(t.x + icYon * 0.22, t.y + 1.10 * t.olcek + ziplama, t.z + 0.22);
+        this.geciciKonum.set(t.x + icYon * 0.32 * t.olcek, t.y + 1.08 * t.olcek + ziplama, t.z + (t.tarafIsaret < 0 ? -0.22 : 0.22));
         this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
         this.gonderInstanced.setMatrixAt(t.altRolIndeks, this.geciciMatris);
 
         this.geciciEuler.set(
-          sallama * 0.75,
-          havuzaBakisY + Math.sin(salinimFazi * 2.1) * 0.42,
-          0.12,
+          sallama * 0.65,
+          havuzaBakisY + Math.sin(salinimFazi * 2.1) * 0.38,
+          0.10,
         );
         this.geciciRotasyon.setFromEuler(this.geciciEuler);
-        this.geciciKonum.set(t.x + icYon * 0.22, t.y + 1.38 * t.olcek + ziplama, t.z + 0.22);
+        this.geciciKonum.set(t.x + icYon * 0.32 * t.olcek, t.y + 1.36 * t.olcek + ziplama, t.z + (t.tarafIsaret < 0 ? -0.22 : 0.22));
         this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
         this.bayrakInstanced.setMatrixAt(t.altRolIndeks, this.geciciMatris);
       } else {
-        // Beste söyleyenler: ritmik el kaldırma/alkış
-        const tezahuratAci = 2.05 + Math.sin(salinimFazi * 1.6) * 0.48;
-        this.geciciEuler.set(0, havuzaBakisY, tezahuratAci);
+        // Beste söyleyenler: ritmik kol kaldırma/alkış
+        const tezahuratX = -2.05 + Math.sin(salinimFazi * 1.6) * 0.42;
+        this.geciciEuler.set(tezahuratX, havuzaBakisY, 0.22);
         this.geciciRotasyon.setFromEuler(this.geciciEuler);
-        this.geciciKonum.set(t.x + icYon * 0.10, t.y + 0.56 * t.olcek + ziplama, t.z - 0.22);
+        this.geciciKonum.set(solOmuzX, omuzY, solOmuzZ);
         this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
         this.solKolInstanced.setMatrixAt(i, this.geciciMatris);
 
-        this.geciciEuler.set(0, havuzaBakisY, -tezahuratAci);
+        this.geciciEuler.set(tezahuratX, havuzaBakisY, -0.22);
         this.geciciRotasyon.setFromEuler(this.geciciEuler);
-        this.geciciKonum.set(t.x + icYon * 0.10, t.y + 0.56 * t.olcek + ziplama, t.z + 0.22);
+        this.geciciKonum.set(sagOmuzX, omuzY, sagOmuzZ);
         this.geciciMatris.compose(this.geciciKonum, this.geciciRotasyon, this.geciciOlcek);
         this.sagKolInstanced.setMatrixAt(i, this.geciciMatris);
       }
@@ -986,9 +1199,13 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
       }
     }
 
+    this.altVucutInstanced.instanceMatrix.needsUpdate = true;
     this.govdeInstanced.instanceMatrix.needsUpdate = true;
     this.basInstanced.instanceMatrix.needsUpdate = true;
-    this.sapkaInstanced.instanceMatrix.needsUpdate = true;
+    this.kisaSacInstanced.instanceMatrix.needsUpdate = true;
+    this.topuzSacInstanced.instanceMatrix.needsUpdate = true;
+    this.kepInstanced.instanceMatrix.needsUpdate = true;
+    this.bereInstanced.instanceMatrix.needsUpdate = true;
     this.solKolInstanced.instanceMatrix.needsUpdate = true;
     this.sagKolInstanced.instanceMatrix.needsUpdate = true;
     this.atkiInstanced.instanceMatrix.needsUpdate = true;
@@ -998,23 +1215,35 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
       inst.instanceMatrix.needsUpdate = true;
     }
 
-    // 2. Starter başhakemi kol animasyonu
+    // 2. Starter başhakemi & bitiş hakemi animasyonları
     if (this.starterIsaretKalanSure > 0) {
       this.starterIsaretKalanSure = Math.max(0, this.starterIsaretKalanSure - sinirliDt);
-      this.starterSagKol.rotation.x = THREE.MathUtils.lerp(
-        this.starterSagKol.rotation.x,
-        -2.75,
+      this.starterHakem.sagOmuz.rotation.x = THREE.MathUtils.lerp(
+        this.starterHakem.sagOmuz.rotation.x,
+        -2.25,
+        0.22,
+      );
+      this.starterHakem.sagDirsek.rotation.x = THREE.MathUtils.lerp(
+        this.starterHakem.sagDirsek.rotation.x,
+        -0.55,
         0.22,
       );
     } else {
-      this.starterSagKol.rotation.x = THREE.MathUtils.lerp(
-        this.starterSagKol.rotation.x,
-        -0.12,
+      this.starterHakem.sagOmuz.rotation.x = THREE.MathUtils.lerp(
+        this.starterHakem.sagOmuz.rotation.x,
+        -0.14,
+        0.12,
+      );
+      this.starterHakem.sagDirsek.rotation.x = THREE.MathUtils.lerp(
+        this.starterHakem.sagDirsek.rotation.x,
+        -0.28,
         0.12,
       );
     }
+    this.starterHakem.boyunPivoti.rotation.y = Math.sin(gecenSure * 0.9) * 0.14;
+    this.bitisHakem.boyunPivoti.rotation.y = Math.cos(gecenSure * 0.85) * 0.18;
 
-    // 3. Yürüyen havuz kenarı hakemleri
+    // 3. Yürüyen havuz kenarı hakemleri (kalça-diz-dirsek gerçekçi yürüyüş döngüsü)
     for (const h of this.yuruyenHakemler) {
       h.konumZ += h.yonZ * h.hiz * sinirliDt;
       if (h.konumZ >= h.makZ) {
@@ -1024,41 +1253,67 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
         h.konumZ = h.minZ;
         h.yonZ = 1;
       }
-      h.adimFazi += sinirliDt * 5.2;
-      h.grup.position.set(h.sabitX, GUVERTE_UST_Y, h.konumZ);
-      h.grup.rotation.y = h.yonZ > 0 ? 0 : Math.PI;
+      h.adimFazi += sinirliDt * 5.4;
 
-      const adimAci = Math.sin(h.adimFazi) * 0.42;
-      h.solBacak.rotation.x = adimAci;
-      h.sagBacak.rotation.x = -adimAci;
-      h.solKol.rotation.x = -adimAci * 0.65;
-      h.sagKol.rotation.x = adimAci * 0.65;
+      const yuruyusSekmesi = Math.abs(Math.cos(h.adimFazi)) * 0.016;
+      h.figur.grup.position.set(h.sabitX, GUVERTE_UST_Y + yuruyusSekmesi, h.konumZ);
+      h.figur.grup.rotation.y = h.yonZ > 0 ? 0 : Math.PI;
+
+      // Yürürken başını havuz kulvarlarına doğru çevirir
+      h.figur.boyunPivoti.rotation.y = h.yonZ * h.havuzYonIsareti * 0.38;
+
+      const solSalinim = Math.sin(h.adimFazi);
+      h.figur.solKalca.rotation.x = solSalinim * 0.38;
+      h.figur.sagKalca.rotation.x = -solSalinim * 0.38;
+
+      // Diz sadece geriye doğru doğal biçimde bükülür (+X rotasyon = ayak arkaya kıvrılır)
+      h.figur.solDiz.rotation.x = Math.max(0, -Math.cos(h.adimFazi)) * 0.56 + 0.05;
+      h.figur.sagDiz.rotation.x = Math.max(0, Math.cos(h.adimFazi)) * 0.56 + 0.05;
+
+      h.figur.solOmuz.rotation.x = -solSalinim * 0.28;
+      h.figur.sagOmuz.rotation.x = solSalinim * 0.28;
+      h.figur.solDirsek.rotation.x = -0.22 - Math.max(0, solSalinim) * 0.22;
+      h.figur.sagDirsek.rotation.x = -0.22 - Math.max(0, -solSalinim) * 0.22;
     }
 
-    // 4. Puan veren hakemler masası tabelalarının havaya kaldırılması
-    const hedefTabelaAci = this.hakemPuanGosterimKalanSure > 0 ? 2.55 : 0.25;
-    if (this.hakemPuanGosterimKalanSure > 0) {
+    // 4. Puan veren hakemler masası tabelalarının omuz + dirsek eklemli kaldırılması
+    const puanGosteriliyorMu = this.hakemPuanGosterimKalanSure > 0;
+    const hedefOmuzX = puanGosteriliyorMu ? -2.20 : -0.45;
+    const hedefDirsekX = puanGosteriliyorMu ? -0.35 : -0.65;
+    if (puanGosteriliyorMu) {
       this.hakemPuanGosterimKalanSure = Math.max(0, this.hakemPuanGosterimKalanSure - sinirliDt);
     }
     for (const hakem of this.puanHakemleri) {
-      hakem.sagKol.rotation.z = THREE.MathUtils.lerp(
-        hakem.sagKol.rotation.z,
-        hedefTabelaAci,
-        0.15,
+      hakem.figur.sagOmuz.rotation.x = THREE.MathUtils.lerp(
+        hakem.figur.sagOmuz.rotation.x,
+        hedefOmuzX,
+        0.14,
       );
+      hakem.figur.sagDirsek.rotation.x = THREE.MathUtils.lerp(
+        hakem.figur.sagDirsek.rotation.x,
+        hedefDirsekX,
+        0.14,
+      );
+      hakem.figur.boyunPivoti.rotation.y = Math.sin(gecenSure * 0.8 + hakem.faz) * 0.14;
     }
 
-    // 5. Galatasaray yüzme antrenörleri tempo/taktik animasyonu
+    // 5. Galatasaray yüzme antrenörleri tempo/kronometre/taktik animasyonu
     for (const a of this.antrenorler) {
       const hareket = Math.sin(gecenSure * (1.8 + cosku * 2.2) + a.faz);
-      a.grup.position.z = a.baslangicZ + hareket * (0.18 * cosku);
-      a.sagKol.rotation.x = -0.75 + Math.sin(gecenSure * 5.5 + a.faz) * (0.45 * cosku);
-      a.solKol.rotation.x = -0.35 + Math.cos(gecenSure * 3.0 + a.faz) * 0.08;
+      a.figur.grup.position.z = a.baslangicZ + hareket * (0.16 * cosku);
+      a.figur.sagOmuz.rotation.x = -0.72 + Math.sin(gecenSure * 5.2 + a.faz) * (0.38 * cosku);
+      a.figur.sagDirsek.rotation.x = -0.42 - Math.abs(Math.sin(gecenSure * 5.2 + a.faz)) * 0.22;
+      a.figur.solDirsek.rotation.x = -0.88 + Math.cos(gecenSure * 3.0 + a.faz) * 0.06;
+      a.figur.boyunPivoti.rotation.y = Math.sin(gecenSure * 1.4 + a.faz) * 0.20;
     }
+
+    // 6. Cankurtaran havuzu sağa-sola tarama hareketi
+    this.cankurtaran.boyunPivoti.rotation.y = Math.sin(gecenSure * 0.55) * 0.42;
+    this.cankurtaran.boyunPivoti.rotation.x = 0.12;
   }
 
   /**
-   * Tüm kalabalık, hakem ve antrenör GPU kaynaklarını serbest bırakır.
+   * Tüm kalabalık, hakem, antrenör ve cankurtaran GPU kaynaklarını serbest bırakır.
    */
   public temizle(): void {
     if (this.temizlendiMi) {
@@ -1067,6 +1322,7 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     this.temizlendiMi = true;
 
     this.sahne.remove(this.anaGrup);
+    this.insanUretici.temizle();
 
     for (const geom of this.olusturulanGeometriler) {
       geom.dispose();
@@ -1084,4 +1340,3 @@ export class ArenaKalabalikVeHakemler implements KaynakTemizlenebilir {
     this.olusturulanDokular.length = 0;
   }
 }
-

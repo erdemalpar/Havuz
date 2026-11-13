@@ -146,6 +146,16 @@ export class YuzucuManken extends SuCismiTaban {
       roughness: 0.08,
       metalness: 0.90,
     });
+    const dudakMateryali = new THREE.MeshStandardMaterial({
+      color: 0xb96a60,
+      roughness: 0.42,
+      metalness: 0.04,
+    });
+    const kasMateryali = new THREE.MeshStandardMaterial({
+      color: 0x2a1b14,
+      roughness: 0.72,
+      metalness: 0.02,
+    });
 
     this.boyunPivoti = this.govdeVeBasInsaEt(
       ciltMateryali,
@@ -155,6 +165,8 @@ export class YuzucuManken extends SuCismiTaban {
       sortIkinciMateryali,
       karbonMateryali,
       gozlukCamMateryali,
+      dudakMateryali,
+      kasMateryali,
     );
 
     // Simetrik anatomik kollar ve bacaklar için paylaşımlı geometriler (temizle'de tekil dispose edilir)
@@ -211,22 +223,28 @@ export class YuzucuManken extends SuCismiTaban {
     sortIkinciMat: THREE.Material,
     karbonMat: THREE.Material,
     gozlukCamMat: THREE.Material,
+    dudakMat: THREE.Material,
+    kasMat: THREE.Material,
   ): THREE.Group {
-    // 1. V-formlu anatomik üst gövde & karın profili (+Z ekseni boyunca)
+    // 1. V-formlu yüksek çözünürlüklü kaslı üst gövde & karın profili (+Z ekseni boyunca)
     const govdeGeo = this.latheProfilOlustur(
       [
         [0.01, -0.15],
         [0.105, -0.14],
-        [0.102, -0.05],
-        [0.096, 0.04],   // İnce bel oyuğu
-        [0.114, 0.14],   // Alt kaburga
-        [0.136, 0.24],   // Geniş göğüs kafesi / latissimus
-        [0.142, 0.31],   // Pektoral & omuz genişliği
-        [0.112, 0.36],   // Köprücük/trapez geçişi
-        [0.056, 0.40],   // Boyun kökü
+        [0.102, -0.09],
+        [0.100, -0.04],
+        [0.096, 0.01],   // İnce bel oyuğu
+        [0.098, 0.05],
+        [0.108, 0.10],   // Karın üstü
+        [0.118, 0.15],   // Alt kaburga
+        [0.134, 0.22],   // Geniş göğüs kafesi / latissimus
+        [0.142, 0.28],   // Pektoral bölgesi
+        [0.143, 0.32],   // Omuz genişliği
+        [0.114, 0.365],  // Köprücük/trapez geçişi
+        [0.057, 0.40],   // Boyun kökü
         [0.01, 0.405],
       ],
-      24,
+      32,
     );
     govdeGeo.rotateX(Math.PI * 0.5);
     this.govdeAnatomikSekillendir(govdeGeo);
@@ -241,8 +259,8 @@ export class YuzucuManken extends SuCismiTaban {
       [0.104, 0.09],
       [0.01, 0.095],
     ];
-    const sagMayoGeo = this.latheProfilOlustur(mayoProfil, 16, 0, Math.PI);
-    const solMayoGeo = this.latheProfilOlustur(mayoProfil, 16, Math.PI, Math.PI);
+    const sagMayoGeo = this.latheProfilOlustur(mayoProfil, 20, 0, Math.PI);
+    const solMayoGeo = this.latheProfilOlustur(mayoProfil, 20, Math.PI, Math.PI);
     for (const geo of [sagMayoGeo, solMayoGeo]) {
       geo.rotateX(Math.PI * 0.5);
       this.pelvisAnatomikSekillendir(geo);
@@ -251,7 +269,7 @@ export class YuzucuManken extends SuCismiTaban {
     this.meshOlusturVeEkle(this.iskeletGrubu, solMayoGeo, sortIkinciMat, 0, -0.002, -0.06);
 
     // Mayo bel lastiği ve yan kontrast şeritler
-    const belKemeriGeo = new THREE.CylinderGeometry(0.105, 0.105, 0.026, 20);
+    const belKemeriGeo = new THREE.CylinderGeometry(0.105, 0.105, 0.026, 24);
     belKemeriGeo.rotateX(Math.PI * 0.5);
     belKemeriGeo.scale(1.20, 0.78, 1.0);
     this.meshOlusturVeEkle(this.iskeletGrubu, belKemeriGeo, karbonMat, 0, -0.002, 0.028);
@@ -268,32 +286,93 @@ export class YuzucuManken extends SuCismiTaban {
     const boyunGeo = this.latheProfilOlustur(
       [
         [0.058, 0.0],
-        [0.050, 0.04],
-        [0.049, 0.09],
-        [0.054, 0.12],
+        [0.051, 0.04],
+        [0.049, 0.08],
+        [0.053, 0.12],
       ],
-      16,
+      20,
     );
     boyunGeo.rotateX(Math.PI * 0.5);
     boyunGeo.scale(0.95, 0.92, 1.0);
     this.meshOlusturVeEkle(boyunPivoti, boyunGeo, ciltMat, 0, 0, -0.01);
 
-    // 4. Anatomik yüz hatlı kafa ve GS yarış bonesi + aynalı gözlük
+    // Boyun ön V-kası (sternokleidomastoid) ve gırtlak çıkıntısı
+    const boyunKasGeo = new THREE.CapsuleGeometry(0.010, 0.072, 4, 8);
+    boyunKasGeo.rotateX(Math.PI * 0.5);
+    for (const taraf of [-1, 1] as const) {
+      this.meshOlusturVeEkle(
+        boyunPivoti,
+        boyunKasGeo,
+        ciltMat,
+        taraf * 0.022,
+        -0.036,
+        0.042,
+        0.08,
+        taraf * 0.24,
+        0,
+      );
+    }
+
+    // 4. Anatomik yüz hatlı (burun, kaş, dudak, elmacık, çene) kafa ve GS yarış bonesi + gözlük
     const basMerkeziZ = 0.175;
-    const kafaGeo = new THREE.SphereGeometry(0.095, 24, 18);
+    const kafaGeo = new THREE.SphereGeometry(0.096, 30, 24);
     kafaGeo.scale(0.86, 0.92, 1.12);
+    this.kafaAnatomikSekillendir(kafaGeo);
     this.meshOlusturVeEkle(boyunPivoti, kafaGeo, ciltMat, 0, 0.004, basMerkeziZ);
 
-    // Çene ve elmacık çıkıntısı + burun sırtı + kulaklar
-    const ceneGeo = new THREE.SphereGeometry(0.052, 14, 12);
-    ceneGeo.scale(0.95, 0.65, 1.0);
-    this.meshOlusturVeEkle(boyunPivoti, ceneGeo, ciltMat, 0, -0.054, basMerkeziZ - 0.042);
+    // Çene ucu ve alt çene hattı
+    const ceneGeo = new THREE.SphereGeometry(0.048, 16, 12);
+    ceneGeo.scale(0.90, 0.64, 1.0);
+    this.meshOlusturVeEkle(boyunPivoti, ceneGeo, ciltMat, 0, -0.056, basMerkeziZ - 0.044);
 
-    const burunGeo = new THREE.BoxGeometry(0.018, 0.026, 0.036);
-    this.meshOlusturVeEkle(boyunPivoti, burunGeo, ciltMat, 0, -0.088, basMerkeziZ + 0.005, -0.22, 0, 0);
+    // Yumuşak anatomik burun sırtı, yuvarlak burun ucu ve iki burun kanadı (kutu yerine heykel form)
+    const burunSirtiGeo = this.latheProfilOlustur(
+      [
+        [0.004, 0.0],
+        [0.0085, 0.014],
+        [0.0105, 0.026],
+        [0.007, 0.034],
+        [0.002, 0.036],
+      ],
+      12,
+    );
+    burunSirtiGeo.rotateX(Math.PI * 0.5 + 0.34);
+    this.meshOlusturVeEkle(boyunPivoti, burunSirtiGeo, ciltMat, 0, -0.086, basMerkeziZ + 0.016);
 
-    const kulakGeo = new THREE.SphereGeometry(0.022, 10, 8);
-    kulakGeo.scale(0.35, 0.80, 1.0);
+    const burunKanatGeo = new THREE.SphereGeometry(0.0068, 10, 8);
+    burunKanatGeo.scale(0.95, 0.78, 1.05);
+    this.meshOlusturVeEkle(boyunPivoti, burunKanatGeo, ciltMat, -0.0065, -0.092, basMerkeziZ - 0.003);
+    this.meshOlusturVeEkle(boyunPivoti, burunKanatGeo, ciltMat, 0.0065, -0.092, basMerkeziZ - 0.003);
+
+    // Üst ve alt dudaklar
+    const dudakUstGeo = new THREE.SphereGeometry(0.013, 12, 10);
+    dudakUstGeo.scale(1.45, 0.42, 0.42);
+    this.meshOlusturVeEkle(boyunPivoti, dudakUstGeo, dudakMat, 0, -0.082, basMerkeziZ - 0.024);
+
+    const dudakAltGeo = new THREE.SphereGeometry(0.0115, 12, 10);
+    dudakAltGeo.scale(1.25, 0.40, 0.38);
+    this.meshOlusturVeEkle(boyunPivoti, dudakAltGeo, dudakMat, 0, -0.081, basMerkeziZ - 0.032);
+
+    // Kavisli sağ ve sol kaş kemerleri
+    const kasGeo = new THREE.CapsuleGeometry(0.0032, 0.020, 4, 8);
+    kasGeo.rotateZ(Math.PI * 0.5);
+    for (const taraf of [-1, 1] as const) {
+      this.meshOlusturVeEkle(
+        boyunPivoti,
+        kasGeo,
+        kasMat,
+        taraf * 0.028,
+        -0.072,
+        basMerkeziZ + 0.048,
+        0,
+        taraf * 0.14,
+        -taraf * 0.16,
+      );
+    }
+
+    // Kıvrımlı kulaklar
+    const kulakGeo = new THREE.SphereGeometry(0.021, 12, 10);
+    kulakGeo.scale(0.32, 0.78, 1.05);
     this.meshOlusturVeEkle(boyunPivoti, kulakGeo, ciltMat, 0.080, 0.002, basMerkeziZ - 0.01);
     this.meshOlusturVeEkle(boyunPivoti, kulakGeo, ciltMat, -0.080, 0.002, basMerkeziZ - 0.01);
 
@@ -388,6 +467,39 @@ export class YuzucuManken extends SuCismiTaban {
     return boyunPivoti;
   }
 
+  private kafaAnatomikSekillendir(geometri: THREE.BufferGeometry): void {
+    const pos = geometri.attributes.position;
+    for (let i = 0; i < pos.count; i += 1) {
+      let x = pos.getX(i);
+      let y = pos.getY(i);
+      let z = pos.getZ(i);
+
+      // Çene ucu ve alt çene hattı (-Z yönü çeneye doğru daralır, ön yüz -Y tarafında)
+      if (z < -0.01 && y < 0.02) {
+        const altFaktor = THREE.MathUtils.clamp((-z - 0.01) / 0.09, 0, 1);
+        x *= 1.0 - altFaktor * 0.28;
+        if (y < -0.02) {
+          y -= altFaktor * 0.008 * Math.exp(-Math.pow(x / 0.030, 2));
+        }
+      }
+
+      // Elmacık kemiği vurgusu ve göz çukuru girintisi (y < -0.04, z > 0)
+      if (y < -0.03 && z > -0.01 && z < 0.06) {
+        const elmacik =
+          Math.exp(-Math.pow((Math.abs(x) - 0.046) / 0.022, 2)) *
+          Math.exp(-Math.pow((z - 0.006) / 0.024, 2));
+        const gozYuvasi =
+          Math.exp(-Math.pow((Math.abs(x) - 0.028) / 0.018, 2)) *
+          Math.exp(-Math.pow((z - 0.032) / 0.018, 2));
+        y -= elmacik * 0.007;
+        y += gozYuvasi * 0.006;
+      }
+
+      pos.setXYZ(i, x, y, z);
+    }
+    geometri.computeVertexNormals();
+  }
+
   private govdeAnatomikSekillendir(geometri: THREE.BufferGeometry): void {
     const pos = geometri.attributes.position;
     for (let i = 0; i < pos.count; i++) {
@@ -395,17 +507,43 @@ export class YuzucuManken extends SuCismiTaban {
       let y = pos.getY(i) * 0.72;
       const z = pos.getZ(i);
 
-      // Pektoral kas kabarıklığı (göğüs ön tarafı -Y)
-      if (z > 0.12 && z < 0.34 && y < 0) {
-        const gogusBant = Math.sin(((z - 0.12) / 0.22) * Math.PI);
-        const lob = Math.exp(-Math.pow((Math.abs(x) - 0.065) / 0.055, 2));
-        y -= gogusBant * lob * 0.018;
+      // Ön cephe (-Y): göğüs (pektoral), köprücük kemiği ve karın kasları (six-pack)
+      if (y < 0) {
+        // Köprücük kemiği kemeri (z: 0.32 .. 0.37)
+        if (z > 0.31 && z < 0.38) {
+          const klavikula =
+            Math.exp(-Math.pow((z - 0.345) / 0.016, 2)) *
+            THREE.MathUtils.clamp(Math.abs(x) / 0.08, 0.15, 1.0);
+          y -= klavikula * 0.008;
+        }
+
+        // Pektoral kas kabarıklığı ve ortada sternum oyuğu (z: 0.13 .. 0.34)
+        if (z > 0.12 && z < 0.34) {
+          const gogusBant = Math.sin(((z - 0.12) / 0.22) * Math.PI);
+          const lob = Math.exp(-Math.pow((Math.abs(x) - 0.068) / 0.052, 2));
+          const sternumOlugu = Math.exp(-Math.pow(x / 0.016, 2));
+          y -= gogusBant * lob * 0.021 - gogusBant * sternumOlugu * 0.007;
+        }
+
+        // Karın kasları (rectus abdominis 3 blok + dikey orta oluk, z: -0.06 .. 0.13)
+        if (z > -0.06 && z < 0.13 && Math.abs(x) < 0.085) {
+          const karinBant = Math.sin(((z + 0.06) / 0.19) * Math.PI);
+          const dikeyOluk = Math.exp(-Math.pow(x / 0.013, 2));
+          const lobX = Math.exp(-Math.pow((Math.abs(x) - 0.032) / 0.022, 2));
+          const satir = Math.abs(Math.sin(((z + 0.05) / 0.17) * Math.PI * 3.0));
+          y -= karinBant * (lobX * satir * 0.009 - dikeyOluk * 0.005);
+        }
       }
 
-      // Sırt omurga oluğu (+Y sırt tarafı)
+      // Sırt tarafı (+Y): omurga oluğu, kürek kemikleri (skapula) ve kanat kası
       if (y > 0.02) {
-        const omurgaOlugu = Math.exp(-Math.pow(x / 0.032, 2));
-        y -= omurgaOlugu * 0.010;
+        const omurgaOlugu = Math.exp(-Math.pow(x / 0.028, 2));
+        const skapula =
+          z > 0.16 && z < 0.35
+            ? Math.sin(((z - 0.16) / 0.19) * Math.PI) *
+              Math.exp(-Math.pow((Math.abs(x) - 0.075) / 0.045, 2))
+            : 0;
+        y += skapula * 0.011 - omurgaOlugu * 0.012;
       }
 
       pos.setXYZ(i, x, y, z);
@@ -444,7 +582,7 @@ export class YuzucuManken extends SuCismiTaban {
         [0.048, -0.04],
         [0.042, 0.0],
       ],
-      16,
+      18,
     );
     ustKolGeo.scale(0.92, 1.0, 1.06);
 
@@ -453,28 +591,51 @@ export class YuzucuManken extends SuCismiTaban {
     // Ön kol (dirsekten önkol kasına şişip ince bileğe daralma)
     const onKolGeo = this.latheProfilOlustur(
       [
-        [0.024, -0.23],
+        [0.023, -0.23],
         [0.029, -0.16],
         [0.040, -0.07],
         [0.037, -0.02],
         [0.034, 0.0],
       ],
-      16,
+      18,
     );
     onKolGeo.scale(1.04, 1.0, 0.86);
 
-    const avucGeo = new THREE.BoxGeometry(0.064, 0.072, 0.020);
-    const parmakPaletGeo = new THREE.CylinderGeometry(0.028, 0.020, 0.080, 10);
-    parmakPaletGeo.scale(1.12, 1.0, 0.36);
-    const basParmakGeo = new THREE.CapsuleGeometry(0.0085, 0.032, 6, 8);
+    const bilekGeo = new THREE.SphereGeometry(0.024, 10, 8);
+    bilekGeo.scale(1.05, 0.75, 0.78);
+
+    // Şekillendirilmiş organik avuç içi (kutu yerine anatomik oval form)
+    const avucGeo = new THREE.SphereGeometry(0.036, 14, 12);
+    avucGeo.scale(0.95, 1.18, 0.36);
+
+    // Uca doğru incelen eklemli parmak geometrisi (-Y ekseninde)
+    const parmakGeo = this.latheProfilOlustur(
+      [
+        [0.0045, -0.074],
+        [0.0062, -0.042],
+        [0.0074, -0.015],
+        [0.0078, 0.0],
+      ],
+      8,
+    );
+
+    const basParmakGeo = this.latheProfilOlustur(
+      [
+        [0.0052, -0.048],
+        [0.0076, -0.024],
+        [0.0092, 0.0],
+      ],
+      8,
+    );
 
     return {
       deltoidGeo,
       ustKolGeo,
       dirsekGeo,
       onKolGeo,
+      bilekGeo,
       avucGeo,
-      parmakPaletGeo,
+      parmakGeo,
       basParmakGeo,
     };
   }
@@ -498,19 +659,43 @@ export class YuzucuManken extends SuCismiTaban {
     this.meshOlusturVeEkle(dirsekPivoti, geo.dirsekGeo, ciltMat);
     this.meshOlusturVeEkle(dirsekPivoti, geo.onKolGeo, ciltMat);
 
-    // Avuç içi + 4 parmak paleti + ayrık başparmak
-    this.meshOlusturVeEkle(dirsekPivoti, geo.avucGeo, ciltMat, 0, -0.265, 0);
-    this.meshOlusturVeEkle(dirsekPivoti, geo.parmakPaletGeo, ciltMat, 0, -0.335, 0);
+    // Bilek + organik avuç içi + 4 ayrı parmak + başparmak (5 parmaklı el)
+    this.meshOlusturVeEkle(dirsekPivoti, geo.bilekGeo, ciltMat, 0, -0.232, 0);
+    this.meshOlusturVeEkle(dirsekPivoti, geo.avucGeo, ciltMat, 0, -0.268, 0);
+
+    // İşaret, orta, yüzük ve serçe parmaklar: başparmak tarafı (-tarafIsareti) -> dış (+tarafIsareti)
+    const parmakKonfigurasyonlari = [
+      { xOfset: -tarafIsareti * 0.023, boyOlcek: 0.94, yayZ: -tarafIsareti * 0.05 },
+      { xOfset: -tarafIsareti * 0.008, boyOlcek: 1.04, yayZ: -tarafIsareti * 0.01 },
+      { xOfset: tarafIsareti * 0.008, boyOlcek: 0.96, yayZ: tarafIsareti * 0.03 },
+      { xOfset: tarafIsareti * 0.022, boyOlcek: 0.78, yayZ: tarafIsareti * 0.07 },
+    ];
+    for (const p of parmakKonfigurasyonlari) {
+      const parmakMesh = this.meshOlusturVeEkle(
+        dirsekPivoti,
+        geo.parmakGeo,
+        ciltMat,
+        p.xOfset,
+        -0.300,
+        0,
+        0.08,
+        0,
+        p.yayZ,
+      );
+      parmakMesh.scale.set(1.0, p.boyOlcek, 1.0);
+    }
+
+    // Doğal dış açılı başparmak
     this.meshOlusturVeEkle(
       dirsekPivoti,
       geo.basParmakGeo,
       ciltMat,
-      -tarafIsareti * 0.038,
-      -0.275,
+      -tarafIsareti * 0.033,
+      -0.254,
+      -0.006,
+      0.14,
       0,
-      0,
-      0,
-      -tarafIsareti * 0.42,
+      -tarafIsareti * 0.44,
     );
 
     const elNoktasi = new THREE.Object3D();
@@ -529,7 +714,7 @@ export class YuzucuManken extends SuCismiTaban {
         [0.070, -0.04],
         [0.072, 0.0],
       ],
-      18,
+      20,
     );
     uylukMayoGeo.rotateX(Math.PI * 0.5);
     uylukMayoGeo.scale(0.98, 1.04, 1.0);
@@ -544,32 +729,43 @@ export class YuzucuManken extends SuCismiTaban {
         [0.052, -0.24],
         [0.055, -0.20],
       ],
-      16,
+      18,
     );
     uylukTenGeo.rotateX(Math.PI * 0.5);
 
-    const dizGeo = new THREE.SphereGeometry(0.046, 12, 10);
+    const dizGeo = new THREE.SphereGeometry(0.046, 14, 12);
 
     // Baldır: gastroknemius kasından ince aşil/bileğe daralma
     const baldirGeo = this.latheProfilOlustur(
       [
-        [0.029, -0.28],
-        [0.036, -0.20],
+        [0.028, -0.28],
+        [0.035, -0.20],
         [0.052, -0.10],
         [0.046, -0.04],
         [0.044, 0.0],
       ],
-      18,
+      20,
     );
     baldirGeo.rotateX(Math.PI * 0.5);
     baldirGeo.scale(0.92, 1.06, 1.0);
 
-    // Anatomik ayak parçaları: topuk, ayak tarağı/kemeri ve gergin parmak ucu
-    const topukGeo = new THREE.SphereGeometry(0.029, 10, 10);
-    const ayakKemerGeo = new THREE.BoxGeometry(0.062, 0.030, 0.095);
-    const parmakUcuGeo = new THREE.CylinderGeometry(0.026, 0.015, 0.078, 10);
-    parmakUcuGeo.rotateX(Math.PI * 0.5);
-    parmakUcuGeo.scale(1.15, 0.48, 1.0);
+    const ayakBilekGeo = new THREE.SphereGeometry(0.031, 12, 10);
+    const topukGeo = new THREE.SphereGeometry(0.028, 12, 10);
+
+    // Organik şekillendirilmiş ayak tarağı ve taban kemeri (kutu yerine anatomik heykel)
+    const ayakGovdeGeo = new THREE.SphereGeometry(0.038, 16, 12);
+    ayakGovdeGeo.scale(0.84, 0.50, 1.65);
+
+    // 5 ayak parmağı için incelen temel parmak geometrisi (-Z yönüne uzanır)
+    const ayakParmakGeo = this.latheProfilOlustur(
+      [
+        [0.0038, -0.034],
+        [0.0056, -0.018],
+        [0.0066, 0.0],
+      ],
+      8,
+    );
+    ayakParmakGeo.rotateX(Math.PI * 0.5);
 
     return {
       uylukMayoGeo,
@@ -577,9 +773,10 @@ export class YuzucuManken extends SuCismiTaban {
       uylukTenGeo,
       dizGeo,
       baldirGeo,
+      ayakBilekGeo,
       topukGeo,
-      ayakKemerGeo,
-      parmakUcuGeo,
+      ayakGovdeGeo,
+      ayakParmakGeo,
     };
   }
 
@@ -612,10 +809,32 @@ export class YuzucuManken extends SuCismiTaban {
     this.meshOlusturVeEkle(dizPivoti, geo.dizGeo, ciltMat);
     this.meshOlusturVeEkle(dizPivoti, geo.baldirGeo, ciltMat);
 
-    // Topuk + ayak kemeri + gergin yüzücü parmak ucu
-    this.meshOlusturVeEkle(dizPivoti, geo.topukGeo, ciltMat, 0, 0.014, -0.295);
-    this.meshOlusturVeEkle(dizPivoti, geo.ayakKemerGeo, ciltMat, 0, -0.006, -0.342, 0.22, 0, 0);
-    this.meshOlusturVeEkle(dizPivoti, geo.parmakUcuGeo, ciltMat, 0, -0.024, -0.415, 0.26, 0, 0);
+    // Bilek + topuk + anatomik ayak tarağı + 5 parmak (başparmaktan serçeye)
+    this.meshOlusturVeEkle(dizPivoti, geo.ayakBilekGeo, ciltMat, 0, 0.0, -0.28);
+    this.meshOlusturVeEkle(dizPivoti, geo.topukGeo, ciltMat, 0, 0.015, -0.296);
+    this.meshOlusturVeEkle(dizPivoti, geo.ayakGovdeGeo, ciltMat, 0, -0.008, -0.346, 0.24, 0, 0);
+
+    const ayakParmakTanimlari = [
+      { xOfset: -tarafIsareti * 0.020, kalinlik: 1.25, uzunluk: 1.08, zOfset: -0.398 },
+      { xOfset: -tarafIsareti * 0.009, kalinlik: 0.92, uzunluk: 1.12, zOfset: -0.400 },
+      { xOfset: tarafIsareti * 0.002, kalinlik: 0.85, uzunluk: 0.96, zOfset: -0.398 },
+      { xOfset: tarafIsareti * 0.012, kalinlik: 0.78, uzunluk: 0.82, zOfset: -0.394 },
+      { xOfset: tarafIsareti * 0.021, kalinlik: 0.72, uzunluk: 0.68, zOfset: -0.388 },
+    ];
+    for (const ap of ayakParmakTanimlari) {
+      const parmak = this.meshOlusturVeEkle(
+        dizPivoti,
+        geo.ayakParmakGeo,
+        ciltMat,
+        ap.xOfset,
+        -0.024,
+        ap.zOfset,
+        0.26,
+        0,
+        0,
+      );
+      parmak.scale.set(ap.kalinlik, ap.kalinlik, ap.uzunluk);
+    }
 
     const ayakNoktasi = new THREE.Object3D();
     ayakNoktasi.position.set(0, -0.02, -0.42);
