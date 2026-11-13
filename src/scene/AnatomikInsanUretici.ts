@@ -63,6 +63,7 @@ interface PaylasimliGeometriler {
   topuzSac: THREE.BufferGeometry;
   sporKep: THREE.BufferGeometry;
   bere: THREE.BufferGeometry;
+  tribunKafa: THREE.BufferGeometry;
   tribunGovde: THREE.BufferGeometry;
   tribunAltVucut: THREE.BufferGeometry;
   tribunKol: THREE.BufferGeometry;
@@ -202,8 +203,28 @@ export class AnatomikInsanUretici implements KaynakTemizlenebilir {
     const sporKep = this.sporKepGeometrisiOlustur();
     const bere = this.bereGeometrisiOlustur();
 
-    // Tribün seyircileri için optimize edilmiş birleşik InstancedMesh geometrileri
-    const tribunGovde = ustGovde.clone();
+    // Tribün seyircileri için optimize edilmiş boyun/yaka birleşimli InstancedMesh geometrileri
+    const tribunKafaKopya = kafa.clone();
+    const tribunBoyunKopya = boyun.clone();
+    const boyunUv = tribunBoyunKopya.attributes.uv;
+    if (boyunUv) {
+      for (let i = 0; i < boyunUv.count; i += 1) {
+        boyunUv.setXY(i, 0.12, 0.12);
+      }
+      boyunUv.needsUpdate = true;
+    }
+    tribunBoyunKopya.translate(0, -0.185, -0.006);
+    const tribunKafa = this.bufferGeometrileriBirlestir([tribunKafaKopya, tribunBoyunKopya]);
+    tribunKafaKopya.dispose();
+    tribunBoyunKopya.dispose();
+
+    const tribunUstKopya = ustGovde.clone();
+    const tribunYakaKopya = yaka.clone();
+    tribunYakaKopya.translate(0, 0.50, 0);
+    const tribunGovde = this.bufferGeometrileriBirlestir([tribunUstKopya, tribunYakaKopya]);
+    tribunUstKopya.dispose();
+    tribunYakaKopya.dispose();
+
     const tribunAltVucut = this.tribunOturanAltVucutOlustur(pelvis, uyluk, baldir, ayakkabiUst);
     const tribunKol = this.tribunKolGeometrisiOlustur(ustKolUzun, onKol, el);
 
@@ -225,6 +246,7 @@ export class AnatomikInsanUretici implements KaynakTemizlenebilir {
       topuzSac,
       sporKep,
       bere,
+      tribunKafa,
       tribunGovde,
       tribunAltVucut,
       tribunKol,
@@ -249,6 +271,7 @@ export class AnatomikInsanUretici implements KaynakTemizlenebilir {
       topuzSac,
       sporKep,
       bere,
+      tribunKafa,
       tribunGovde,
       tribunAltVucut,
       tribunKol,
@@ -520,7 +543,7 @@ export class AnatomikInsanUretici implements KaynakTemizlenebilir {
 
   // --- Dışa Açık Tribün InstancedMesh Erişicileri ---
   public tribunKafaGeometrisiGetir(): THREE.BufferGeometry {
-    return this.geometriler.kafa;
+    return this.geometriler.tribunKafa;
   }
 
   public tribunGovdeGeometrisiGetir(): THREE.BufferGeometry {

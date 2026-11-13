@@ -329,15 +329,15 @@ export class YuzucuManken extends SuCismiTaban {
     const burunSirtiGeo = this.latheProfilOlustur(
       [
         [0.004, 0.0],
-        [0.0085, 0.014],
-        [0.0105, 0.026],
-        [0.007, 0.034],
-        [0.002, 0.036],
+        [0.0078, 0.012],
+        [0.0098, 0.024],
+        [0.0065, 0.030],
+        [0.002, 0.032],
       ],
       12,
     );
-    burunSirtiGeo.rotateX(Math.PI * 0.5 + 0.34);
-    this.meshOlusturVeEkle(boyunPivoti, burunSirtiGeo, ciltMat, 0, -0.086, basMerkeziZ + 0.016);
+    burunSirtiGeo.rotateX(-Math.PI * 0.62);
+    this.meshOlusturVeEkle(boyunPivoti, burunSirtiGeo, ciltMat, 0, -0.082, basMerkeziZ + 0.024);
 
     const burunKanatGeo = new THREE.SphereGeometry(0.0068, 10, 8);
     burunKanatGeo.scale(0.95, 0.78, 1.05);
