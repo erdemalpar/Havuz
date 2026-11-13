@@ -56,7 +56,7 @@ const SU_YUZEYI_FRAGMENT_SHADER = /* glsl */ `
   varying vec3 vSuNormal;
   varying vec2 vSuUV;
 
-  // Olimpik havuz hacmi ([-4, 4] x [-2.60, suY] x [-8, 8]) içinde analitik Ray-Box çıkış hesabı
+  // Olimpik havuz hacmi ([-8, 8] x [-2.80, suY] x [-16, 16]) içinde analitik Ray-Box çıkış hesabı
   float rayBoxHavuzKesisimi(
     vec3 baslangic,
     vec3 yon,
@@ -127,7 +127,7 @@ const SU_YUZEYI_FRAGMENT_SHADER = /* glsl */ `
         : (yansimaYon.z < -0.0001 ? (HAVUZ_MIN_Z - nokta.z) / yansimaYon.z : 1e6);
       float tHavuzDuvar = min(txHavuz, tzHavuz);
 
-      if (tHavuzDuvar < 16.0) {
+      if (tHavuzDuvar < 36.0) {
         vec3 duvarNokta = nokta + yansimaYon * tHavuzDuvar;
         if (duvarNokta.y < HAVUZ_DUVAR_UST_Y && duvarNokta.y >= HAVUZ_TABAN_Y) {
           vec3 duvarNormal = txHavuz < tzHavuz
@@ -144,9 +144,9 @@ const SU_YUZEYI_FRAGMENT_SHADER = /* glsl */ `
       }
     }
 
-    // 2. Kapalı Galatasaray Olimpik Natatorium salon hacmi (X ∈ [-13.0, 13.0], Z ∈ [-18.5, 18.5], Y_tavan = 16.2)
-    const float SALON_YARI_X = 13.0;
-    const float SALON_YARI_Z = 18.5;
+    // 2. Kapalı Galatasaray Olimpik Natatorium salon hacmi (X ∈ [-20.0, 20.0], Z ∈ [-26.0, 26.0], Y_tavan = 16.2)
+    const float SALON_YARI_X = 20.0;
+    const float SALON_YARI_Z = 26.0;
     const float SALON_TAVAN_Y = 16.2;
 
     float txSalon = yansimaYon.x > 0.0001
@@ -170,26 +170,26 @@ const SU_YUZEYI_FRAGMENT_SHADER = /* glsl */ `
       // --- YÜKSEK TAVAN (16.2m): Çelik kafes makasları ve yüksek tavan LED arena projektör şeritleri ---
       vec3 akustikTavan = vec3(0.06, 0.085, 0.125);
 
-      // Z boyunca 3.2m aralıklı dev enine çelik makas kirişleri
-      float makasMesafeZ = abs(fract(carpma.z / 3.2 + 0.5) - 0.5) * 3.2;
-      float anaMakasMaske = 1.0 - smoothstep(0.22, 0.34, makasMesafeZ);
+      // Z boyunca enine çelik makas kirişleri
+      float makasMesafeZ = abs(fract((carpma.z + 4.0) / 8.0 + 0.5) - 0.5) * 8.0;
+      float anaMakasMaske = 1.0 - smoothstep(0.24, 0.38, makasMesafeZ);
 
-      // X boyunca 2.6m aralıklı boyuna ikincil çelik aşıklar
-      float asikMesafeX = abs(fract(carpma.x / 2.6 + 0.5) - 0.5) * 2.6;
-      float ikincilAsikMaske = 1.0 - smoothstep(0.07, 0.13, asikMesafeX);
+      // X boyunca boyuna ikincil çelik aşıklar
+      float asikMesafeX = abs(fract(carpma.x / 3.5 + 0.5) - 0.5) * 3.5;
+      float ikincilAsikMaske = 1.0 - smoothstep(0.08, 0.15, asikMesafeX);
 
       // Kafes çapraz doku vurgusu
-      float kafesDokusu = 0.85 + 0.15 * sin(carpma.x * 4.2);
+      float kafesDokusu = 0.85 + 0.15 * sin(carpma.x * 3.2);
       vec3 celikRenk = vec3(0.18, 0.22, 0.28) * kafesDokusu;
 
-      // Havuz boyunca 3 şeritli yüksek tavan LED arena projektörleri (X = -3.2, 0.0, +3.2)
-      float ledX = min(abs(carpma.x), min(abs(carpma.x - 3.2), abs(carpma.x + 3.2)));
-      float ledSeritEn = 1.0 - smoothstep(0.20, 0.36, ledX);
-      float ledBoySinir = 1.0 - smoothstep(9.5, 11.0, abs(carpma.z));
-      float ledAralikMaske = smoothstep(0.34, 0.56, makasMesafeZ);
+      // Havuz boyunca 3 şeritli yüksek tavan LED arena projektörleri (X = -5.6, 0.0, +5.6)
+      float ledX = min(abs(carpma.x), min(abs(carpma.x - 5.6), abs(carpma.x + 5.6)));
+      float ledSeritEn = 1.0 - smoothstep(0.25, 0.44, ledX);
+      float ledBoySinir = 1.0 - smoothstep(18.5, 20.5, abs(carpma.z));
+      float ledAralikMaske = smoothstep(0.38, 0.65, makasMesafeZ);
       float ledMaske = ledSeritEn * ledBoySinir * ledAralikMaske;
 
-      float ledMerkez = 1.0 - smoothstep(0.06, 0.20, ledX);
+      float ledMerkez = 1.0 - smoothstep(0.08, 0.24, ledX);
       vec3 ledRenk = mix(vec3(2.9, 3.2, 3.8), vec3(4.3, 4.4, 4.7), ledMerkez);
 
       float celikMaske = clamp(max(anaMakasMaske, ikincilAsikMaske * 0.7), 0.0, 1.0);
@@ -216,32 +216,34 @@ const SU_YUZEYI_FRAGMENT_SHADER = /* glsl */ `
 
       // Yüksek clerestory gün ışığı pencere bandı (8.6m .. 13.8m)
       float pencereY = smoothstep(8.4, 8.8, yukseklik) * (1.0 - smoothstep(13.6, 14.0, yukseklik));
-      float kolonFaz = abs(fract(carpma.z / 3.4 + 0.5) - 0.5) * 3.4;
-      float pencereAciklik = 1.0 - smoothstep(1.25, 1.42, kolonFaz);
-      float yatayKayit = smoothstep(0.08, 0.16, abs(yukseklik - 11.2));
+      float kolonFaz = abs(fract(carpma.z / 6.0 + 0.5) - 0.5) * 6.0;
+      float pencereAciklik = 1.0 - smoothstep(2.1, 2.45, kolonFaz);
+      float yatayKayit = smoothstep(0.08, 0.16, abs(yukseklik - 10.2));
       float pencereMaske = pencereY * pencereAciklik * yatayKayit;
 
       float gunesYonuEslesme = clamp(sign(carpma.x) * isigaDogru.x * 0.5 + 0.5, 0.0, 1.0);
       vec3 pencereIsik = mix(vec3(0.95, 1.25, 1.58), vec3(2.35, 2.45, 2.55), gunesYonuEslesme);
       yansimaRenk = mix(yansimaRenk, pencereIsik, pencereMaske);
     } else {
-      // --- UÇ DUVARLAR: Galatasaray skorboard panosu ve yüksek pencere bandı ---
+      // --- UÇ DUVARLAR: -Z duvarında Galatasaray skorboard panosu ve yüksek pencere bandı ---
       float yukseklik = carpma.y;
       yansimaRenk = vec3(0.095, 0.12, 0.17);
 
       // Yüksek uç duvar pencere bandı (9.2m .. 13.4m)
       float ustPencereY = smoothstep(9.0, 9.3, yukseklik) * (1.0 - smoothstep(13.2, 13.6, yukseklik));
-      float kolonX = abs(fract(carpma.x / 2.8 + 0.5) - 0.5) * 2.8;
-      float pencereAciklik = 1.0 - smoothstep(1.02, 1.16, kolonX);
+      float kolonX = abs(fract(carpma.x / 3.2 + 0.5) - 0.5) * 3.2;
+      float pencereAciklik = 1.0 - smoothstep(1.18, 1.32, kolonX);
       yansimaRenk = mix(yansimaRenk, vec3(0.92, 1.20, 1.50), ustPencereY * pencereAciklik);
 
-      // Skorboard dijital panel parıltısı (X ∈ [-3.6, 3.6], Y ∈ [3.2, 5.6])
-      float panoX = 1.0 - smoothstep(3.4, 3.65, abs(carpma.x));
-      float panoY = smoothstep(3.1, 3.28, yukseklik) * (1.0 - smoothstep(5.45, 5.65, yukseklik));
-      float panoMaske = panoX * panoY;
-      float panoSatir = 0.65 + 0.35 * step(0.45, fract(yukseklik * 5.0));
-      vec3 panoRenk = mix(gsKirmizi * 1.4, gsSari * 1.1, step(0.5, fract(carpma.x * 0.55))) * panoSatir;
-      yansimaRenk = mix(yansimaRenk, panoRenk, panoMaske * 0.85);
+      // Yalnızca -Z ucunda dev dijital skorboard panel parıltısı (X ∈ [-6.2, 6.2], Y ∈ [6.6, 12.2])
+      if (carpma.z < 0.0) {
+        float panoX = 1.0 - smoothstep(5.95, 6.25, abs(carpma.x));
+        float panoY = smoothstep(6.5, 6.7, yukseklik) * (1.0 - smoothstep(12.1, 12.3, yukseklik));
+        float panoMaske = panoX * panoY;
+        float panoSatir = 0.65 + 0.35 * step(0.45, fract(yukseklik * 4.5));
+        vec3 panoRenk = mix(gsKirmizi * 1.4, gsSari * 1.1, step(0.5, fract(carpma.x * 0.45))) * panoSatir;
+        yansimaRenk = mix(yansimaRenk, panoRenk, panoMaske * 0.85);
+      }
     }
 
     // 3. +Z ucundaki yüksek 10m Atlama Kulesi ve platformlarının su üstü yansıma silueti
@@ -250,21 +252,21 @@ const SU_YUZEYI_FRAGMENT_SHADER = /* glsl */ `
       vec3 kuleRenk = vec3(0.0);
       bool kuleVuruldu = false;
 
-      // Ana taşıyıcı beton/çelik kule gövdesi (Z ≈ 9.4m)
-      float tGovde = (9.4 - nokta.z) / yansimaYon.z;
+      // Ana taşıyıcı beton/çelik kule gövdesi (Z ≈ 17.55m)
+      float tGovde = (17.55 - nokta.z) / yansimaYon.z;
       if (tGovde > 0.0 && tGovde < enYakinKuleT) {
         vec3 govdeNokta = nokta + yansimaYon * tGovde;
         float govdeXMesafe = abs(govdeNokta.x - TRAMPLEN_KULVAR_X);
-        if (govdeXMesafe < 0.92 && govdeNokta.y >= HAVUZ_DUVAR_UST_Y && govdeNokta.y <= TRAMPLEN_YUKSEKLIK_Y + 0.65) {
+        if (govdeXMesafe < 1.1 && govdeNokta.y >= HAVUZ_DUVAR_UST_Y && govdeNokta.y <= TRAMPLEN_YUKSEKLIK_Y + 0.65) {
           enYakinKuleT = tGovde;
           kuleVuruldu = true;
-          float kenarVurgu = smoothstep(0.68, 0.88, govdeXMesafe);
+          float kenarVurgu = smoothstep(0.75, 1.05, govdeXMesafe);
           vec3 dikeySerit = govdeNokta.x > TRAMPLEN_KULVAR_X ? gsSari * 0.85 : gsKirmizi * 1.15;
           kuleRenk = mix(vec3(0.14, 0.16, 0.21), dikeySerit, kenarVurgu * 0.8);
         }
       }
 
-      // 3m, 5m, 7.5m ve 10m tramplen platform çıkıntıları (Z ∈ [TRAMPLEN_UC_Z, 9.6])
+      // 3m, 5m, 7.5m ve 10m tramplen platform çıkıntıları (Z ∈ [TRAMPLEN_UC_Z, 17.8])
       if (yansimaYon.y > 0.001) {
         float platformYukseklikleri[4];
         platformYukseklikleri[0] = 3.0;
@@ -278,7 +280,7 @@ const SU_YUZEYI_FRAGMENT_SHADER = /* glsl */ `
           if (tPlat > 0.0 && tPlat < enYakinKuleT) {
             vec3 platNokta = nokta + yansimaYon * tPlat;
             float platXMesafe = abs(platNokta.x - TRAMPLEN_KULVAR_X);
-            if (platXMesafe < 0.72 && platNokta.z >= TRAMPLEN_UC_Z && platNokta.z <= 9.6) {
+            if (platXMesafe < 0.95 && platNokta.z >= TRAMPLEN_UC_Z && platNokta.z <= 17.8) {
               enYakinKuleT = tPlat;
               kuleVuruldu = true;
               float ucSerit = 1.0 - smoothstep(TRAMPLEN_UC_Z, TRAMPLEN_UC_Z + 0.28, platNokta.z);
@@ -466,7 +468,7 @@ const SU_YUZEYI_FRAGMENT_SHADER = /* glsl */ `
 `;
 
 /**
- * 255x511 segmentli (256x512 köşe noktalı) 8m x 16m dalgalı su yüzeyi mesh'ini oluşturur.
+ * 255x511 segmentli (256x512 köşe noktalı) 16m x 32m dalgalı su yüzeyi mesh'ini oluşturur.
  */
 export function suYuzeyiOlustur(
   ortakUniformlar: OrtakOptikUniformlari,

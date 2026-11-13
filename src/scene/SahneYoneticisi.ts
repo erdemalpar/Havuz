@@ -7,7 +7,7 @@ export type YenidenBoyutlandirDinleyici = (genislik: number, yukseklik: number) 
 const ARKA_PLAN_RENGI = 0x0b1524;
 const YARIM_KURE_GOK_RENGI = 0xe6f2ff;
 const YARIM_KURE_YER_RENGI = 0x2c3b4c;
-const GUNES_ISIGI_MESAFESI = 18;
+const GUNES_ISIGI_MESAFESI = 28;
 
 /**
  * WebGL2 bağlamını, olimpik kapalı spor kompleksi sahnesini, arena
@@ -32,6 +32,11 @@ export class SahneYoneticisi implements KaynakTemizlenebilir {
   public yenidenBoyutlandirDinleyici: YenidenBoyutlandirDinleyici | null = null;
 
   private readonly pencereBoyutOlayIsleyici: () => void;
+  private readonly kontrolBaslamaIsleyici: () => void;
+  private readonly kameraHedefKonum = new THREE.Vector3();
+  private readonly kameraHedefBakis = new THREE.Vector3();
+  private kameraGecisiAktifMi = false;
+  private kameraGecisSuresi = 0;
   private sonGenislik = 0;
   private sonYukseklik = 0;
   private temizlendiMi = false;
@@ -99,27 +104,32 @@ export class SahneYoneticisi implements KaynakTemizlenebilir {
 
     // Tribünler, çelik makaslar ve paslanmaz ekipmanlar için yumuşak arena dolgu ışıkları
     this.onDolguIsigi = new THREE.DirectionalLight(0xdbeafe, 0.48);
-    this.onDolguIsigi.position.set(-10, 8, -12);
+    this.onDolguIsigi.position.set(-16, 10, -18);
     this.sahne.add(this.onDolguIsigi);
 
     this.arkaDolguIsigi = new THREE.DirectionalLight(0xe0f2fe, 0.38);
-    this.arkaDolguIsigi.position.set(11, 7, 12);
+    this.arkaDolguIsigi.position.set(17, 9, 18);
     this.sahne.add(this.arkaDolguIsigi);
 
-    // Olimpik arena ve 10m tramplen panoramasını kapsayan geniş perspektif kamera
-    this.kamera = new THREE.PerspectiveCamera(45, genislik / yukseklik, 0.1, 150);
-    this.kamera.position.set(11.8, 6.8, -13.4);
-    this.kamera.lookAt(0, 1.4, 0.5);
+    // 16m x 32m Olimpik arena ve 10m tramplen panoramasını kapsayan geniş perspektif kamera
+    this.kamera = new THREE.PerspectiveCamera(45, genislik / yukseklik, 0.1, 220);
+    this.kamera.position.set(19.5, 9.8, -22.5);
+    this.kamera.lookAt(0, 1.5, 0);
 
     // OrbitControls kurulumu (uzak panorama ve su altı bakışı dahil)
     this.kontroller = new OrbitControls(this.kamera, this.tuval);
     this.kontroller.enableDamping = true;
     this.kontroller.dampingFactor = 0.06;
-    this.kontroller.minDistance = 2.2;
-    this.kontroller.maxDistance = 34.0;
+    this.kontroller.minDistance = 2.5;
+    this.kontroller.maxDistance = 54.0;
     this.kontroller.maxPolarAngle = Math.PI * 0.86;
-    this.kontroller.target.set(0, 1.4, 0.5);
+    this.kontroller.target.set(0, 1.5, 0);
     this.kontroller.update();
+
+    this.kontrolBaslamaIsleyici = (): void => {
+      this.kameraGecisiAktifMi = false;
+    };
+    this.kontroller.addEventListener('start', this.kontrolBaslamaIsleyici);
 
     this.pencereBoyutOlayIsleyici = (): void => {
       this.boyutlandirmayiIsle();
@@ -180,9 +190,37 @@ export class SahneYoneticisi implements KaynakTemizlenebilir {
   }
 
   /**
-   * OrbitControls sönümleme hareketini kare başına ilerletir.
+   * Oyun modu geçişlerinde kamerayı hedef konum ve bakış noktasına yumuşak şekilde odaklar.
    */
-  public guncelle(): void {
+  public kameraOdakAyarla(hedefKonum: THREE.Vector3, hedefBakis: THREE.Vector3): void {
+    this.kameraHedefKonum.copy(hedefKonum);
+    this.kameraHedefBakis.copy(hedefBakis);
+    this.kameraGecisiAktifMi = true;
+    this.kameraGecisSuresi = 0;
+  }
+
+  /**
+   * OrbitControls sönümleme hareketini ve varsa yumuşak kamera geçişini kare başına ilerletir.
+   */
+  public guncelle(dt = 0.016): void {
+    if (this.kameraGecisiAktifMi) {
+      const sinirliDt = Math.min(Math.max(dt, 0.001), 0.05);
+      this.kameraGecisSuresi += sinirliDt;
+      const karisim = 1 - Math.exp(-5.2 * sinirliDt);
+      this.kamera.position.lerp(this.kameraHedefKonum, karisim);
+      this.kontroller.target.lerp(this.kameraHedefBakis, karisim);
+
+      if (
+        this.kameraGecisSuresi >= 0.95 ||
+        (this.kamera.position.distanceToSquared(this.kameraHedefKonum) < 0.04 &&
+          this.kontroller.target.distanceToSquared(this.kameraHedefBakis) < 0.02)
+      ) {
+        this.kamera.position.copy(this.kameraHedefKonum);
+        this.kontroller.target.copy(this.kameraHedefBakis);
+        this.kameraGecisiAktifMi = false;
+      }
+    }
+
     this.kontroller.update();
   }
 
@@ -203,6 +241,7 @@ export class SahneYoneticisi implements KaynakTemizlenebilir {
     this.temizlendiMi = true;
 
     window.removeEventListener('resize', this.pencereBoyutOlayIsleyici);
+    this.kontroller.removeEventListener('start', this.kontrolBaslamaIsleyici);
     this.yenidenBoyutlandirDinleyici = null;
 
     this.kontroller.dispose();

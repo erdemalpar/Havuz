@@ -328,13 +328,13 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
   }
 
   /**
-   * Z = -5.0 ve Z = +5.0 hizalarında Y = 1.95 m yüksekliğinde
-   * Sarı-Kırmızı sıralı Galatasaray üçgen flamalı sırtüstü dönüş bayrak iplerini oluşturur.
+   * Z = -11.0 ve Z = +11.0 hizalarında (duvarlardan 5m içeride, FINA kuralı) Y = 1.95 m
+   * yüksekliğinde Sarı-Kırmızı sıralı Galatasaray üçgen flamalı sırtüstü dönüş bayrak iplerini oluşturur.
    */
   private sirtustuBayrakIpleriOlustur(): void {
-    const bayrakZKonumlari = [-5.0, 5.0];
+    const bayrakZKonumlari = [-11.0, 11.0];
     const ipYuksekligiY = 1.95;
-    const direkX = 4.55;
+    const direkX = 8.48;
     const guverteY = 0.175;
     const direkBoyu = ipYuksekligiY + 0.12 - guverteY;
 
@@ -396,9 +396,9 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
     });
     this.olusturulanMateryaller.push(flamaMateryali);
 
-    const flamaBaslangicX = -4.16;
+    const flamaBaslangicX = -7.93;
     const flamaAralikX = 0.26;
-    const ipBasiFlamaSayisi = 33;
+    const ipBasiFlamaSayisi = 62;
     const toplamFlama = ipBasiFlamaSayisi * bayrakZKonumlari.length;
 
     const flamaInstanced = new THREE.InstancedMesh(flamaGeometri, flamaMateryali, toplamFlama);
@@ -427,7 +427,7 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
   }
 
   /**
-   * Uzun havuz duvarlarının uçlarında (X = ±4.0, Z = ±6.75)
+   * Uzun havuz duvarlarının uçlarında (X = ±8.0, Z = ±13.8)
    * 4 adet paslanmaz çelik havuz merdiveni oluşturur.
    */
   private havuzMerdivenleriOlustur(): void {
@@ -447,10 +447,10 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
     this.olusturulanGeometriler.push(kolGeometri, basamakGeometri, pedGeometri, flansGeometri);
 
     const merdivenKonumlari = [
-      { x: 4.0, z: -6.75, rotasyonY: 0 },
-      { x: 4.0, z: 6.75, rotasyonY: 0 },
-      { x: -4.0, z: -6.75, rotasyonY: Math.PI },
-      { x: -4.0, z: 6.75, rotasyonY: Math.PI },
+      { x: 8.0, z: -13.8, rotasyonY: 0 },
+      { x: 8.0, z: 13.8, rotasyonY: 0 },
+      { x: -8.0, z: -13.8, rotasyonY: Math.PI },
+      { x: -8.0, z: 13.8, rotasyonY: Math.PI },
     ];
 
     const basamakYukseklikleri = [-0.20, -0.52, -0.84, -1.16];
@@ -549,8 +549,8 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
   }
 
   /**
-   * Havuzun +Z ucunda (Z = +9.55 taşıyıcı kolonlar) 5.0m, 7.5m ara katları,
-   * 10.0m ana platformu, TRAMPLEN_UC_Z (+7.25) ucuna uzanan kaymaz tramplen
+   * Havuzun +Z ucunda (Z = +17.55 taşıyıcı kolonlar) 5.0m, 7.5m ara katları,
+   * 10.0m ana platformu, TRAMPLEN_UC_Z (+15.15) ucuna uzanan kaymaz tramplen
    * tahtası, arka tırmanma merdivenleri ve Galatasaray 10M tabelasını oluşturur.
    */
   private onMetreTramplenKulesiOlustur(): void {
@@ -561,8 +561,8 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
     const kuleGrubu = new THREE.Group();
     kuleGrubu.name = 'onMetreTramplenKulesi';
 
-    const kolonOnZ = 9.55;
-    const kolonArkaZ = 11.45;
+    const kolonOnZ = 17.55;
+    const kolonArkaZ = 19.45;
     const kolonYariX = 0.90;
     const kolonYukseklik = ustY - guverteY;
     const kolonMerkezY = guverteY + kolonYukseklik * 0.5;
@@ -598,9 +598,9 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
 
     // 2. 5.0m, 7.5m Ara Katlar ve 10.0m Ana Üst Platform
     const katTanimlari = [
-      { ad: 'kat5m', ustKotY: 5.0, onZ: 7.85, arkaZ: 11.65 },
-      { ad: 'kat7_5m', ustKotY: 7.5, onZ: 7.65, arkaZ: 11.65 },
-      { ad: 'kat10m', ustKotY: 9.92, onZ: 7.75, arkaZ: 11.65 },
+      { ad: 'kat5m', ustKotY: 5.0, onZ: 15.85, arkaZ: 19.65 },
+      { ad: 'kat7_5m', ustKotY: 7.5, onZ: 15.65, arkaZ: 19.65 },
+      { ad: 'kat10m', ustKotY: 9.92, onZ: 15.75, arkaZ: 19.65 },
     ];
 
     const platformGenislik = 2.18;
@@ -659,10 +659,10 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
       }
     }
 
-    // 3. Y = 10.0m, X = tramplenX ekseninde Z = +7.25m ucuna uzanan kaymaz Tramplen Tahtası
-    const ucZ = HAVUZ_SABITLERI.TRAMPLEN_UC_Z; // 7.25
-    const tahtaArkaZ = 9.65;
-    const tahtaUzunluk = tahtaArkaZ - ucZ; // 2.40m
+    // 3. Y = 10.0m, X = tramplenX ekseninde Z = +15.15m ucuna uzanan kaymaz Tramplen Tahtası
+    const ucZ = HAVUZ_SABITLERI.TRAMPLEN_UC_Z; // 15.15
+    const tahtaArkaZ = 17.65;
+    const tahtaUzunluk = tahtaArkaZ - ucZ; // 2.50m
     const tahtaMerkezZ = (ucZ + tahtaArkaZ) * 0.5;
     const tahtaGenislik = 0.54;
     const tahtaKalinlik = 0.06;
@@ -696,7 +696,7 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
     ucSerit.position.set(tramplenX, ustY - tahtaKalinlik * 0.5, ucZ + 0.03);
 
     // Tramplen altı yaylanma dayanak silindiri (fulcrum) ve destek ayakları
-    const fulcrumZ = 8.42;
+    const fulcrumZ = 16.42;
     const fulcrumSilindir = new THREE.Mesh(fulcrumSilindirGeometri, this.gsKirmiziMateryal);
     fulcrumSilindir.position.set(tramplenX, ustY - tahtaKalinlik - 0.055, fulcrumZ);
 
@@ -706,9 +706,9 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
       kuleGrubu.add(ayak);
     }
 
-    // 10m tramplen tahtası yan krom destek korkulukları (Z ∈ [7.85, 9.65])
+    // 10m tramplen tahtası yan krom destek korkulukları (Z ∈ [15.85, 17.65])
     const tahtaKorkulukUzunluk = 1.80;
-    const tahtaKorkulukMerkezZ = 8.75;
+    const tahtaKorkulukMerkezZ = 16.75;
     const tahtaKupesteGeometri = new THREE.CylinderGeometry(0.018, 0.018, tahtaKorkulukUzunluk, 8);
     tahtaKupesteGeometri.rotateX(Math.PI * 0.5);
     const tahtaDikmeGeometri = new THREE.CylinderGeometry(0.016, 0.016, 0.88, 8);
@@ -720,7 +720,7 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
       kupeste.position.set(x, ustY + 0.82, tahtaKorkulukMerkezZ);
       kuleGrubu.add(kupeste);
 
-      for (const dz of [7.88, 8.75, 9.60]) {
+      for (const dz of [15.88, 16.75, 17.60]) {
         const dikme = new THREE.Mesh(tahtaDikmeGeometri, this.kromMateryal);
         dikme.position.set(x, ustY + 0.38, dz);
         kuleGrubu.add(dikme);
@@ -770,9 +770,9 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
     guverteY: number,
   ): void {
     const merdivenKollar = [
-      { altY: guverteY, ustY: 5.0, altZ: 14.25, ustZ: 11.65, x: tramplenX + 0.46 },
-      { altY: 5.0, ustY: 7.5, altZ: 11.65, ustZ: 13.15, x: tramplenX - 0.46 },
-      { altY: 7.5, ustY: 9.92, altZ: 13.15, ustZ: 11.65, x: tramplenX + 0.46 },
+      { altY: guverteY, ustY: 5.0, altZ: 22.25, ustZ: 19.65, x: tramplenX + 0.46 },
+      { altY: 5.0, ustY: 7.5, altZ: 19.65, ustZ: 21.15, x: tramplenX - 0.46 },
+      { altY: 7.5, ustY: 9.92, altZ: 21.15, ustZ: 19.65, x: tramplenX + 0.46 },
     ];
 
     const toplamBasamak = 14 + 9 + 9;
@@ -833,9 +833,9 @@ export class OlimpikEkipmanlar implements KaynakTemizlenebilir {
 
     basamakInstanced.instanceMatrix.needsUpdate = true;
 
-    // 7.5m arka dönüş sahanlığı (Z = 13.45)
+    // 7.5m arka dönüş sahanlığı (Z = 21.55)
     const sahanlik = new THREE.Mesh(sahanlikGeometri, this.kuleBetonMateryal);
-    sahanlik.position.set(tramplenX, 7.41, 13.55);
+    sahanlik.position.set(tramplenX, 7.41, 21.55);
 
     kuleGrubu.add(basamakInstanced, sahanlik);
   }

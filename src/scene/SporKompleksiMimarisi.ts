@@ -1,20 +1,25 @@
 import * as THREE from 'three';
-import { GALATASARAY_RENKLERI, KaynakTemizlenebilir } from '../types/simulation';
+import {
+  GALATASARAY_RENKLERI,
+  type KaynakTemizlenebilir,
+  type TramplenSkorboardVerisi,
+  type YuzmeSkorboardVerisi,
+} from '../types/simulation';
 
-const SALON_YARI_X = 12.0;
-const SALON_YARI_Z = 16.0;
+const SALON_YARI_X = 20.0;
+const SALON_YARI_Z = 26.0;
 const TAVAN_YUKSEKLIK_Y = 16.2;
 const GUVERTE_UST_Y = 0.175;
 const GUVERTE_KALINLIK = 0.26;
-const HAVUZ_ACIKLIK_YARI_X = 4.35;
-const HAVUZ_ACIKLIK_YARI_Z = 8.35;
+const HAVUZ_ACIKLIK_YARI_X = 8.35;
+const HAVUZ_ACIKLIK_YARI_Z = 16.35;
 
 /**
  * Galatasaray Spor Kompleksi (Natatorium) mimarisini yöneten sınıf:
  * 4 parçalı kaymaz taş güverte, Sarı-Kırmızı koreografili tribünler ve pankart
- * şeritleri, 16.2m yüksek tavanlı salon kabuğu, panoramik pencereler,
- * çelik çatı makasları, kulüp sancakları, LED projektörler, dijital skorboard
- * ve cankurtaran kulesi.
+ * şeritleri, 16.2m yüksek tavanlı 40m x 52m salon kabuğu, panoramik pencereler,
+ * çelik çatı makasları, kulüp sancakları, LED projektörler, 10m kulenin karşısındaki
+ * dinamik dijital skorboard ve cankurtaran kulesi.
  */
 export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
   private readonly sahne: THREE.Scene;
@@ -22,6 +27,10 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
   private readonly olusturulanGeometriler: THREE.BufferGeometry[] = [];
   private readonly olusturulanMateryaller: THREE.Material[] = [];
   private readonly olusturulanDokular: THREE.Texture[] = [];
+
+  private skorTuvali!: HTMLCanvasElement;
+  private skorBaglami!: CanvasRenderingContext2D;
+  private skorDokusu!: THREE.CanvasTexture;
 
   private temizlendiMi = false;
 
@@ -132,7 +141,7 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
   }
 
   /**
-   * Ortadaki [-4.35, +4.35] x [-8.35, +8.35] havuz açıklığını boş bırakan
+   * Ortadaki [-8.35, +8.35] x [-16.35, +16.35] havuz açıklığını boş bırakan
    * 4 parçalı kaymaz taş güverteyi Z-fighting olmadan oluşturur.
    */
   private havuzGuvertesiOlustur(): void {
@@ -296,15 +305,15 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
     );
 
     const basamakSayisi = 5;
-    const basamakDerinlik = 1.12;
+    const basamakDerinlik = 1.25;
     const basamakYukseklik = 0.52;
-    const baslangicX = 6.25;
-    const tribunUzunlukZ = 24.4;
+    const baslangicX = 13.25;
+    const tribunUzunlukZ = 38.4;
 
     // 1. Basamaklı beton tribün blokları
     for (let b = 0; b < basamakSayisi; b += 1) {
       const toplamYukseklik = (b + 1) * basamakYukseklik;
-      const genislik = b === basamakSayisi - 1 ? 1.27 : basamakDerinlik;
+      const genislik = b === basamakSayisi - 1 ? 1.75 : basamakDerinlik;
       const merkezX = baslangicX + b * basamakDerinlik + genislik * 0.5;
       const merkezY = GUVERTE_UST_Y + toplamYukseklik * 0.5;
 
@@ -319,20 +328,20 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
       }
     }
 
-    // 2. İki uzun tribün ön beton duvarında Galatasaray LED pankart şeridi (|X| = 6.24)
+    // 2. İki uzun tribün ön beton duvarında Galatasaray LED pankart şeridi (|X| = 13.24)
     const pankartGeometri = new THREE.PlaneGeometry(tribunUzunlukZ - 0.2, 0.48);
     this.olusturulanGeometriler.push(pankartGeometri);
 
     for (const isaret of [-1, 1]) {
       const pankartMesh = new THREE.Mesh(pankartGeometri, pankartMateryali);
       pankartMesh.name = `galatasarayTribunPankart_${isaret < 0 ? 'sol' : 'sag'}`;
-      pankartMesh.position.set(isaret * 6.24, GUVERTE_UST_Y + 0.26, 0);
+      pankartMesh.position.set(isaret * 13.24, GUVERTE_UST_Y + 0.26, 0);
       pankartMesh.rotation.y = isaret < 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
       this.anaGrup.add(pankartMesh);
     }
 
-    // 3. Tribün önü cam ve krom korkuluklar (|X| = 6.18)
-    const korkulukX = 6.18;
+    // 3. Tribün önü cam ve krom korkuluklar (|X| = 13.18)
+    const korkulukX = 13.18;
     const korkulukYukseklik = 1.02;
     const camGeometri = new THREE.BoxGeometry(0.024, korkulukYukseklik - 0.12, tribunUzunlukZ - 0.1);
     const kupesteGeometri = new THREE.CylinderGeometry(0.026, 0.026, tribunUzunlukZ, 10);
@@ -341,7 +350,7 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
 
     this.olusturulanGeometriler.push(camGeometri, kupesteGeometri, dikmeGeometri);
 
-    const dikmeSayisiPerTaraf = 11;
+    const dikmeSayisiPerTaraf = 17;
     const dikmeInstanced = new THREE.InstancedMesh(
       dikmeGeometri,
       kromMateryal,
@@ -363,7 +372,7 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
       this.anaGrup.add(camMesh, kupesteMesh);
 
       for (let d = 0; d < dikmeSayisiPerTaraf; d += 1) {
-        const z = -12.0 + d * 2.4;
+        const z = -19.2 + d * 2.4;
         matris.makeTranslation(isaret * korkulukX, GUVERTE_UST_Y + korkulukYukseklik * 0.5, z);
         dikmeInstanced.setMatrixAt(dikmeIdx, matris);
         dikmeIdx += 1;
@@ -372,8 +381,8 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
     dikmeInstanced.instanceMatrix.needsUpdate = true;
     this.anaGrup.add(dikmeInstanced);
 
-    // 4. Galatasaray Sarı-Kırmızı parçalı koreografili 380 adet stadyum koltuğu
-    const siraKoltukSayisi = 38;
+    // 4. Galatasaray Sarı-Kırmızı parçalı koreografili 560 adet stadyum koltuğu
+    const siraKoltukSayisi = 56;
     const toplamKoltuk = basamakSayisi * siraKoltukSayisi * 2;
 
     const oturakGeometri = new THREE.BoxGeometry(0.42, 0.06, 0.44);
@@ -389,8 +398,8 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
     const gsSari = new THREE.Color(GALATASARAY_RENKLERI.HEX_SARI_ANA);
 
     let koltukIdx = 0;
-    const zBaslangic = -11.3;
-    const zAdim = 0.61;
+    const zBaslangic = -18.15;
+    const zAdim = 0.66;
 
     for (const isaret of [-1, 1]) {
       for (let b = 0; b < basamakSayisi; b += 1) {
@@ -538,7 +547,7 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
     const kolonGeometri = new THREE.BoxGeometry(0.45, TAVAN_YUKSEKLIK_Y - GUVERTE_UST_Y, 0.52);
     this.olusturulanGeometriler.push(kolonGeometri);
 
-    const kolonZKonumlari = [-15.7, -12, -6, 0, 6, 12, 15.7];
+    const kolonZKonumlari = [-24.5, -18, -12, -6, 0, 6, 12, 18, 24.5];
     const kolonInstanced = new THREE.InstancedMesh(
       kolonGeometri,
       kolonMateryali,
@@ -560,7 +569,7 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
     kolonInstanced.instanceMatrix.needsUpdate = true;
     this.anaGrup.add(kolonInstanced);
 
-    // Y = 9.6m seviyesinde yükseltilmiş panoramik gündüz pencere dizileri
+    // Y = 9.6m seviyesinde yükseltilmiş panoramik gündüz pencere dizileri (kolon aralıklarında)
     const pencereGenislikZ = 5.1;
     const pencereYukseklik = 3.8;
     const pencereMerkezY = 9.6;
@@ -577,7 +586,7 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
       pencereKayitGeometri,
     );
 
-    const pencereZMerkezleri = [-9, -3, 3, 9];
+    const pencereZMerkezleri = [-21, -15, -9, -3, 3, 9, 15, 21];
     for (const isaret of [-1, 1]) {
       for (const z of pencereZMerkezleri) {
         const cerceveMesh = new THREE.Mesh(pencereCerceveGeometri, pencereCerceveMateryali);
@@ -620,14 +629,14 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
 
     this.olusturulanMateryaller.push(celikMateryal, projektorGovdeMateryal, ledDifuzorMateryal);
 
-    const makasZKonumlari = [-12, -6, 0, 6, 12];
+    const makasZKonumlari = [-20, -12, -4, 4, 12, 20];
     const makasGenislik = SALON_YARI_X * 2 - 0.5;
     const altKirisY = 14.80;
     const ustKirisY = 15.85;
     const makasYukseklik = ustKirisY - altKirisY;
 
-    const dikeyAdimlar = [-10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10];
-    const caprazAdimGenislik = 2.5;
+    const dikeyAdimlar = [-17.5, -14, -10.5, -7, -3.5, 0, 3.5, 7, 10.5, 14, 17.5];
+    const caprazAdimGenislik = 3.5;
     const caprazUzunluk = Math.hypot(caprazAdimGenislik, makasYukseklik);
 
     const yatayKirisGeometri = new THREE.BoxGeometry(makasGenislik, 0.18, 0.22);
@@ -653,7 +662,7 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
     );
 
     // 14.60m kotunda LED arena projektörleri
-    const projektorXKonumlari = [-6.4, -3.8, -1.3, 1.3, 3.8, 6.4];
+    const projektorXKonumlari = [-11.0, -6.6, -2.2, 2.2, 6.6, 11.0];
     const projektorGovdeGeometri = new THREE.BoxGeometry(0.68, 0.14, 0.46);
     const projektorLedGeometri = new THREE.BoxGeometry(0.58, 0.04, 0.38);
     this.olusturulanGeometriler.push(projektorGovdeGeometri, projektorLedGeometri);
@@ -823,8 +832,8 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
     const askiHalatGeometri = new THREE.CylinderGeometry(0.012, 0.012, 0.75, 6);
     this.olusturulanGeometriler.push(sancakGeometri, cubukGeometri, askiHalatGeometri);
 
-    const sancakZKonumlari = [-12, -6, 0, 6, 12];
-    const sancakXKonumlari = [-7.8, 7.8];
+    const sancakZKonumlari = [-18, -9, 0, 9, 18];
+    const sancakXKonumlari = [-12.5, 12.5];
     const sancakMerkezY = 12.6;
 
     for (const x of sancakXKonumlari) {
@@ -850,99 +859,26 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
   }
 
   /**
-   * Karşı uç duvarda (Z = +15.5, Y = 11.8) 10m kulesinin üstünde net okunan
-   * Galatasaray SK temalı dijital LED skorboardu oluşturur.
+   * 10m Atlama Kulesinin (+Z) tam karşısındaki -Z duvarına (Z = -25.35, Y = 9.4)
+   * +Z yönüne bakan dinamik Galatasaray SK dijital LED skorboardunu oluşturur.
    */
   private dijitalSkorboardOlustur(): void {
-    const tuval = document.createElement('canvas');
-    tuval.width = 1024;
-    tuval.height = 512;
+    this.skorTuvali = document.createElement('canvas');
+    this.skorTuvali.width = 1024;
+    this.skorTuvali.height = 512;
 
-    const baglam = tuval.getContext('2d');
+    const baglam = this.skorTuvali.getContext('2d');
     if (!baglam) {
       throw new Error('Dijital skorboard dokusu için 2B tuval bağlamı oluşturulamadı.');
     }
+    this.skorBaglami = baglam;
 
-    // Koyu LED zemin
-    baglam.fillStyle = '#090d16';
-    baglam.fillRect(0, 0, 1024, 512);
+    this.skorDokusu = new THREE.CanvasTexture(this.skorTuvali);
+    this.skorDokusu.colorSpace = THREE.SRGBColorSpace;
+    this.skorDokusu.anisotropy = 4;
+    this.olusturulanDokular.push(this.skorDokusu);
 
-    // Sarı-Kırmızı kurumsal başlık bandı
-    const baslikGradyan = baglam.createLinearGradient(0, 0, 1024, 0);
-    baslikGradyan.addColorStop(0, GALATASARAY_RENKLERI.KIRMIZI_ANA);
-    baslikGradyan.addColorStop(0.5, '#7c0324');
-    baslikGradyan.addColorStop(1, GALATASARAY_RENKLERI.KIRMIZI_ANA);
-    baglam.fillStyle = baslikGradyan;
-    baglam.fillRect(20, 18, 984, 72);
-
-    baglam.strokeStyle = GALATASARAY_RENKLERI.SARI_ANA;
-    baglam.lineWidth = 4;
-    baglam.strokeRect(20, 18, 984, 72);
-
-    baglam.fillStyle = GALATASARAY_RENKLERI.SARI_ALTIN;
-    baglam.font = '800 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    baglam.textAlign = 'center';
-    baglam.textBaseline = 'middle';
-    baglam.fillText(
-      'GALATASARAY SK  •  OLİMPİK YÜZME TAKIMI  •  6 KULVAR & 10M TRAMPLEN',
-      512,
-      55,
-    );
-
-    // Alt bilgi şeridi
-    baglam.fillStyle = '#cbd5e1';
-    baglam.font = '600 19px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    baglam.fillText('100m SERBEST FİNAL   |   SU: 26.5°C   |   10M KULE ATLAMA', 512, 114);
-
-    // 6 kulvar skor satırları
-    const satirlar = [
-      { kulvar: '1', kod: 'GS', isim: 'YILMAZ E.', derece: '00:48.04', sira: '3' },
-      { kulvar: '2', kod: 'GS', isim: 'KAYA M.', derece: '00:47.76', sira: '2' },
-      { kulvar: '3', kod: 'GS', isim: 'DEMİR A.', derece: '00:47.38', sira: '1' },
-      { kulvar: '4', kod: 'GS', isim: 'ARSLAN K.', derece: '00:48.22', sira: '4' },
-      { kulvar: '5', kod: 'GS', isim: 'ÖZTÜRK B.', derece: '00:48.55', sira: '5' },
-      { kulvar: '6', kod: 'GS', isim: 'ÇELİK T.', derece: '00:48.89', sira: '6' },
-    ];
-
-    for (let i = 0; i < satirlar.length; i += 1) {
-      const satir = satirlar[i];
-      const y = 148 + i * 56;
-
-      baglam.fillStyle = i % 2 === 0 ? 'rgba(169, 4, 50, 0.24)' : 'rgba(17, 24, 39, 0.78)';
-      baglam.fillRect(28, y, 968, 46);
-
-      // Kulvar numarası kutusu (Sarı / Kırmızı dönüşümlü)
-      baglam.fillStyle =
-        i % 2 === 0 ? GALATASARAY_RENKLERI.SARI_ANA : GALATASARAY_RENKLERI.KIRMIZI_ANA;
-      baglam.fillRect(38, y + 6, 40, 34);
-      baglam.fillStyle = i % 2 === 0 ? GALATASARAY_RENKLERI.KARBON_ANTRASIT : '#ffffff';
-      baglam.font = '800 22px Inter, sans-serif';
-      baglam.textAlign = 'center';
-      baglam.fillText(satir.kulvar, 58, y + 24);
-
-      // Takım ve sporcu
-      baglam.fillStyle = '#f8fafc';
-      baglam.font = '700 22px monospace';
-      baglam.textAlign = 'left';
-      baglam.fillText(`${satir.kod}  ${satir.isim}`, 104, y + 24);
-
-      // Derece (LED altın sarısı)
-      baglam.fillStyle = GALATASARAY_RENKLERI.SARI_ALTIN;
-      baglam.font = '800 26px monospace';
-      baglam.textAlign = 'right';
-      baglam.fillText(satir.derece, 885, y + 24);
-
-      // Sıralama
-      baglam.fillStyle = satir.sira === '1' ? GALATASARAY_RENKLERI.SARI_ANA : '#e2e8f0';
-      baglam.font = '800 22px monospace';
-      baglam.fillText(`#${satir.sira}`, 968, y + 24);
-    }
-
-    const skorDoku = new THREE.CanvasTexture(tuval);
-    skorDoku.colorSpace = THREE.SRGBColorSpace;
-    skorDoku.anisotropy = 4;
-    skorDoku.needsUpdate = true;
-    this.olusturulanDokular.push(skorDoku);
+    this.beklemeSkorboardGoster();
 
     const kasaMateryal = new THREE.MeshStandardMaterial({
       color: GALATASARAY_RENKLERI.HEX_KARBON_ANTRASIT,
@@ -950,22 +886,22 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
       metalness: 0.65,
     });
     const ekranMateryal = new THREE.MeshStandardMaterial({
-      map: skorDoku,
-      emissiveMap: skorDoku,
+      map: this.skorDokusu,
+      emissiveMap: this.skorDokusu,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 0.82,
-      roughness: 0.28,
+      emissiveIntensity: 0.86,
+      roughness: 0.26,
       metalness: 0.05,
     });
     this.olusturulanMateryaller.push(kasaMateryal, ekranMateryal);
 
-    const kasaGeometri = new THREE.BoxGeometry(8.8, 4.3, 0.28);
-    const ekranGeometri = new THREE.PlaneGeometry(8.4, 4.05);
-    const askiGeometri = new THREE.CylinderGeometry(0.055, 0.055, 2.8, 8);
+    const kasaGeometri = new THREE.BoxGeometry(12.6, 5.8, 0.32);
+    const ekranGeometri = new THREE.PlaneGeometry(12.1, 5.4);
+    const askiGeometri = new THREE.CylinderGeometry(0.065, 0.065, 4.4, 8);
     this.olusturulanGeometriler.push(kasaGeometri, ekranGeometri, askiGeometri);
 
-    const skorboardZ = 15.5;
-    const skorboardY = 11.8;
+    const skorboardZ = -25.35;
+    const skorboardY = 9.4;
 
     const kasaMesh = new THREE.Mesh(kasaGeometri, kasaMateryal);
     kasaMesh.name = 'dijitalSkorboardKasa';
@@ -973,16 +909,257 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
 
     const ekranMesh = new THREE.Mesh(ekranGeometri, ekranMateryal);
     ekranMesh.name = 'dijitalSkorboardEkran';
-    ekranMesh.position.set(0, skorboardY, skorboardZ - 0.145);
-    ekranMesh.rotation.y = Math.PI; // -Z yönüne, havuza bakar
+    ekranMesh.position.set(0, skorboardY, skorboardZ + 0.17);
+    ekranMesh.rotation.y = 0; // +Z yönüne (havuza ve karşıdaki 10m tramplen kulesine) bakar
 
-    for (const askiX of [-3.4, 3.4]) {
+    for (const askiX of [-4.8, 4.8]) {
       const aski = new THREE.Mesh(askiGeometri, kasaMateryal);
-      aski.position.set(askiX, skorboardY + 3.2, skorboardZ);
+      aski.position.set(askiX, skorboardY + 4.9, skorboardZ);
       this.anaGrup.add(aski);
     }
 
     this.anaGrup.add(kasaMesh, ekranMesh);
+  }
+
+  private skorboardZeminVeBaslikCiz(baslikMetni: string, altBaslikMetni: string): void {
+    const baglam = this.skorBaglami;
+
+    baglam.fillStyle = '#090d16';
+    baglam.fillRect(0, 0, 1024, 512);
+
+    const baslikGradyan = baglam.createLinearGradient(0, 0, 1024, 0);
+    baslikGradyan.addColorStop(0, GALATASARAY_RENKLERI.KIRMIZI_ANA);
+    baslikGradyan.addColorStop(0.5, '#7c0324');
+    baslikGradyan.addColorStop(1, GALATASARAY_RENKLERI.KIRMIZI_ANA);
+    baglam.fillStyle = baslikGradyan;
+    baglam.fillRect(20, 18, 984, 68);
+
+    baglam.strokeStyle = GALATASARAY_RENKLERI.SARI_ANA;
+    baglam.lineWidth = 4;
+    baglam.strokeRect(20, 18, 984, 68);
+
+    baglam.fillStyle = GALATASARAY_RENKLERI.SARI_ALTIN;
+    baglam.font = '800 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    baglam.textAlign = 'center';
+    baglam.textBaseline = 'middle';
+    baglam.fillText(baslikMetni, 512, 52);
+
+    baglam.fillStyle = '#cbd5e1';
+    baglam.font = '600 18px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    baglam.fillText(altBaslikMetni, 512, 108);
+  }
+
+  /**
+   * Bekleme / lobi durumunda skorboarda hoş geldiniz ve branş seçimi ekranını çizer.
+   */
+  public beklemeSkorboardGoster(): void {
+    this.skorboardZeminVeBaslikCiz(
+      'GALATASARAY SK  •  OLİMPİK SU SPORLARI ARENASI',
+      '16m × 32m OLİMPİK HAVUZ   |   SU: 26.8°C   |   BRANŞ SEÇİMİ BEKLENİYOR',
+    );
+
+    const baglam = this.skorBaglami;
+    baglam.fillStyle = 'rgba(169, 4, 50, 0.22)';
+    baglam.fillRect(42, 146, 940, 146);
+    baglam.strokeStyle = 'rgba(253, 185, 18, 0.65)';
+    baglam.lineWidth = 3;
+    baglam.strokeRect(42, 146, 940, 146);
+
+    baglam.fillStyle = GALATASARAY_RENKLERI.SARI_ALTIN;
+    baglam.font = '800 32px Inter, sans-serif';
+    baglam.textAlign = 'center';
+    baglam.fillText('MÜSABAKA BAŞLATMAYA HAZIR', 512, 198);
+
+    baglam.fillStyle = '#f8fafc';
+    baglam.font = '600 22px Inter, sans-serif';
+    baglam.fillText(
+      'Üst menüden veya sağ panelden Yüzme Yarışı ya da 10m Tramplen Atlayışı seçin',
+      512,
+      252,
+    );
+
+    baglam.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    baglam.fillRect(42, 322, 452, 148);
+    baglam.fillRect(530, 322, 452, 148);
+    baglam.strokeStyle = 'rgba(253, 185, 18, 0.45)';
+    baglam.lineWidth = 2;
+    baglam.strokeRect(42, 322, 452, 148);
+    baglam.strokeRect(530, 322, 452, 148);
+
+    baglam.fillStyle = GALATASARAY_RENKLERI.SARI_ANA;
+    baglam.font = '800 24px Inter, sans-serif';
+    baglam.fillText('🏊  6 KULVAR YÜZME YARIŞI', 268, 368);
+    baglam.fillStyle = '#cbd5e1';
+    baglam.font = '500 18px Inter, sans-serif';
+    baglam.fillText('Çıkış düdüğü + ritim kulaç + canlı derece', 268, 416);
+
+    baglam.fillStyle = GALATASARAY_RENKLERI.SARI_ANA;
+    baglam.font = '800 24px Inter, sans-serif';
+    baglam.fillText('🤸  10M TRAMPLEN KUPASI', 756, 368);
+    baglam.fillStyle = '#cbd5e1';
+    baglam.font = '500 18px Inter, sans-serif';
+    baglam.fillText('5 Hakemli canlı rastgele/performans puanlama', 756, 416);
+
+    this.skorDokusu.needsUpdate = true;
+  }
+
+  /**
+   * Yüzme yarışı modunda canlı kronometreyi, 6 kulvar sıralamasını, dereceleri ve puanları çizer.
+   */
+  public yuzmeSkorboardGuncelle(veri: YuzmeSkorboardVerisi): void {
+    const kronometreMetin = `${veri.kronometreSaniye.toFixed(2)} sn`;
+    this.skorboardZeminVeBaslikCiz(
+      veri.baslik,
+      `${veri.altBaslik}   |   SÜRE: ${kronometreMetin}   |   ${veri.durumMetni}`,
+    );
+
+    const baglam = this.skorBaglami;
+    const baslangicY = 142;
+
+    for (let i = 0; i < veri.satirlar.length; i += 1) {
+      const satir = veri.satirlar[i];
+      const y = baslangicY + i * 58;
+
+      if (satir.oyuncuMu) {
+        baglam.fillStyle = 'rgba(253, 185, 18, 0.24)';
+      } else {
+        baglam.fillStyle = i % 2 === 0 ? 'rgba(169, 4, 50, 0.24)' : 'rgba(17, 24, 39, 0.80)';
+      }
+      baglam.fillRect(28, y, 968, 48);
+
+      if (satir.oyuncuMu) {
+        baglam.strokeStyle = GALATASARAY_RENKLERI.SARI_ALTIN;
+        baglam.lineWidth = 2;
+        baglam.strokeRect(28, y, 968, 48);
+      }
+
+      // Kulvar kutusu
+      baglam.fillStyle =
+        i % 2 === 0 ? GALATASARAY_RENKLERI.SARI_ANA : GALATASARAY_RENKLERI.KIRMIZI_ANA;
+      baglam.fillRect(38, y + 7, 42, 34);
+      baglam.fillStyle = i % 2 === 0 ? GALATASARAY_RENKLERI.KARBON_ANTRASIT : '#ffffff';
+      baglam.font = '800 22px Inter, sans-serif';
+      baglam.textAlign = 'center';
+      baglam.fillText(String(satir.kulvarNo), 59, y + 25);
+
+      // Sporcu adı
+      baglam.fillStyle = satir.oyuncuMu ? GALATASARAY_RENKLERI.SARI_ALTIN : '#f8fafc';
+      baglam.font = '700 22px monospace';
+      baglam.textAlign = 'left';
+      const etiket = satir.oyuncuMu ? `${satir.sporcuAdi} (SEN)` : satir.sporcuAdi;
+      baglam.fillText(`GS  ${etiket}`, 100, y + 25);
+
+      // Mesafe / Derece
+      baglam.fillStyle = satir.bitirdiMi ? GALATASARAY_RENKLERI.SARI_ALTIN : '#7dd3fc';
+      baglam.font = '800 24px monospace';
+      baglam.textAlign = 'right';
+      const dereceMetin =
+        satir.dereceSaniye !== null
+          ? `${satir.dereceSaniye.toFixed(2)} sn`
+          : `%${Math.round(satir.anlikMesafeOrani * 100)}`;
+      baglam.fillText(dereceMetin, 760, y + 25);
+
+      // Puan
+      baglam.fillStyle = '#e2e8f0';
+      baglam.font = '700 20px monospace';
+      baglam.fillText(satir.bitirdiMi ? `${satir.puan} P` : '--- P', 886, y + 25);
+
+      // Sıra
+      baglam.fillStyle = satir.sira === 1 ? GALATASARAY_RENKLERI.SARI_ANA : '#cbd5e1';
+      baglam.font = '800 24px monospace';
+      baglam.fillText(`#${satir.sira}`, 972, y + 25);
+    }
+
+    this.skorDokusu.needsUpdate = true;
+  }
+
+  /**
+   * 10m Tramplen modunda atlayış bilgilerini, 5 hakemin dinamik puanlarını ve toplam skoru çizer.
+   */
+  public tramplenSkorboardGuncelle(veri: TramplenSkorboardVerisi): void {
+    this.skorboardZeminVeBaslikCiz(
+      'GALATASARAY SK  •  10M TRAMPLEN ATLAMA ŞAMPİYONASI',
+      `${veri.sporcuAdi}  |  ATLAYIŞ ${veri.atlayisNo}/${veri.toplamAtlayis}  |  ${veri.hareketAdi} (DD ${veri.zorlukDerecesi.toFixed(1)})`,
+    );
+
+    const baglam = this.skorBaglami;
+
+    // Durum bannerı
+    baglam.fillStyle = 'rgba(169, 4, 50, 0.30)';
+    baglam.fillRect(32, 134, 960, 48);
+    baglam.strokeStyle = GALATASARAY_RENKLERI.SARI_ANA;
+    baglam.lineWidth = 2;
+    baglam.strokeRect(32, 134, 960, 48);
+
+    baglam.fillStyle = GALATASARAY_RENKLERI.SARI_ALTIN;
+    baglam.font = '800 23px Inter, sans-serif';
+    baglam.textAlign = 'center';
+    baglam.fillText(veri.durumMetni, 512, 159);
+
+    // 5 Hakem Puan Kartı (H1 .. H5)
+    const kartGenislik = 172;
+    const kartYukseklik = 148;
+    const bosluk = 24;
+    const baslangicX = 34;
+    const kartY = 202;
+
+    for (let h = 0; h < 5; h += 1) {
+      const x = baslangicX + h * (kartGenislik + bosluk);
+      const puan = veri.hakemPuanlari[h];
+      const gecerliPuan = typeof puan === 'number' && puan > 0;
+
+      baglam.fillStyle = 'rgba(17, 24, 39, 0.88)';
+      baglam.fillRect(x, kartY, kartGenislik, kartYukseklik);
+      baglam.strokeStyle = gecerliPuan ? GALATASARAY_RENKLERI.SARI_ANA : '#475569';
+      baglam.lineWidth = 3;
+      baglam.strokeRect(x, kartY, kartGenislik, kartYukseklik);
+
+      baglam.fillStyle = GALATASARAY_RENKLERI.KIRMIZI_ANA;
+      baglam.fillRect(x, kartY, kartGenislik, 36);
+
+      baglam.fillStyle = '#ffffff';
+      baglam.font = '800 18px Inter, sans-serif';
+      baglam.textAlign = 'center';
+      baglam.fillText(`HAKEM ${h + 1}`, x + kartGenislik * 0.5, kartY + 19);
+
+      baglam.fillStyle = gecerliPuan ? GALATASARAY_RENKLERI.SARI_ALTIN : '#64748b';
+      baglam.font = '900 54px monospace';
+      baglam.fillText(
+        gecerliPuan ? puan.toFixed(1) : '--.-',
+        x + kartGenislik * 0.5,
+        kartY + 98,
+      );
+    }
+
+    // Alt özet kutuları (Bu Atlayış Puanı ve Genel Toplam Puan)
+    baglam.fillStyle = 'rgba(169, 4, 50, 0.25)';
+    baglam.fillRect(34, 376, 460, 108);
+    baglam.strokeStyle = GALATASARAY_RENKLERI.KIRMIZI_VURGU;
+    baglam.lineWidth = 2;
+    baglam.strokeRect(34, 376, 460, 108);
+
+    baglam.fillStyle = 'rgba(253, 185, 18, 0.16)';
+    baglam.fillRect(530, 376, 460, 108);
+    baglam.strokeStyle = GALATASARAY_RENKLERI.SARI_ANA;
+    baglam.lineWidth = 2;
+    baglam.strokeRect(530, 376, 460, 108);
+
+    baglam.textAlign = 'center';
+    baglam.fillStyle = '#e2e8f0';
+    baglam.font = '700 20px Inter, sans-serif';
+    baglam.fillText('ATLAYIŞ PUANI', 264, 408);
+    baglam.fillStyle = '#ffffff';
+    baglam.font = '900 44px monospace';
+    baglam.fillText(veri.atlayisPuani > 0 ? veri.atlayisPuani.toFixed(1) : '--.-', 264, 454);
+
+    baglam.fillStyle = GALATASARAY_RENKLERI.SARI_ALTIN;
+    baglam.font = '700 20px Inter, sans-serif';
+    baglam.fillText('TOPLAM KUPA PUANI', 760, 408);
+    baglam.fillStyle = GALATASARAY_RENKLERI.SARI_ANA;
+    baglam.font = '900 44px monospace';
+    baglam.fillText(veri.toplamPuan.toFixed(1), 760, 454);
+
+    this.skorDokusu.needsUpdate = true;
   }
 
   /**
@@ -991,7 +1168,7 @@ export class SporKompleksiMimarisi implements KaynakTemizlenebilir {
   private cankurtaranKulesiOlustur(): void {
     const kuleGrubu = new THREE.Group();
     kuleGrubu.name = 'cankurtaranKulesi';
-    kuleGrubu.position.set(5.25, GUVERTE_UST_Y, -1.2);
+    kuleGrubu.position.set(9.35, GUVERTE_UST_Y, -2.5);
 
     const beyazBoyaMateryal = new THREE.MeshStandardMaterial({
       color: 0xf8fafc,

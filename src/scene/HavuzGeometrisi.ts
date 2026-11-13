@@ -36,7 +36,7 @@ interface DuzlemYuzeyTanimi {
 }
 
 /**
- * Olimpik 8m x 16m iç seramik havuz kabuğunu (taban Y = -2.60),
+ * Olimpik 16m x 32m iç seramik havuz kabuğunu (taban Y = -2.80),
  * taşma oluğu ızgarasını ve Galatasaray Sarı-Kırmızı şeritli drenaj
  * bordür çerçevesini yöneten geometri sınıfı.
  */
@@ -309,8 +309,8 @@ export class HavuzGeometrisi implements KaynakTemizlenebilir {
       metalness: 0.06,
     });
 
-    const kisaKenarIzgaraDokusu = this.tasmaIzgaraDokusuOlustur(18, 1, true);
-    const uzunKenarIzgaraDokusu = this.tasmaIzgaraDokusuOlustur(1, 36, false);
+    const kisaKenarIzgaraDokusu = this.tasmaIzgaraDokusuOlustur(34, 1, true);
+    const uzunKenarIzgaraDokusu = this.tasmaIzgaraDokusuOlustur(1, 68, false);
 
     const kisaKenarIzgaraMateryali = new THREE.MeshStandardMaterial({
       map: kisaKenarIzgaraDokusu,

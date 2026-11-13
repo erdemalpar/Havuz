@@ -39,7 +39,7 @@ const GOLGE_HARITASI_FRAGMENT_SHADER = /* glsl */ `
 `;
 
 /**
- * 8m x 16m Olimpik Natatorium havuzu için su yüzeyi, kostik, su altı gölgesi ve
+ * 16m x 32m Olimpik Natatorium havuzu için su yüzeyi, kostik, su altı gölgesi ve
  * kırılma optik geçişlerini yöneten çok geçişli (multi-pass) WebGL2 optik işleyici.
  */
 export class OptikIsleyici implements OptikIsleyiciArayuzu {
@@ -131,7 +131,7 @@ export class OptikIsleyici implements OptikIsleyiciArayuzu {
       uGolgeKodlamaModu: { value: floatFboDestegi ? 0.0 : 1.0 },
     };
 
-    // Pass 1: Olimpik havuz ve 10m tramplen yüksekliğini kapsayan ışık uzayı ortografik gölge kamerası
+    // Pass 1: 16m x 32m Olimpik havuz ve 10m tramplen yüksekliğini kapsayan ışık uzayı ortografik gölge kamerası
     const yariBoyut = HAVUZ_SABITLERI.GOLGE_KAMERA_YARI_BOYUT;
     this.golgeKamerasi = new THREE.OrthographicCamera(
       -yariBoyut,
@@ -139,7 +139,7 @@ export class OptikIsleyici implements OptikIsleyiciArayuzu {
       yariBoyut,
       -yariBoyut,
       0.1,
-      36.0,
+      62.0,
     );
     this.suAltiGolgeMateryali = new THREE.ShaderMaterial({
       name: 'SuAltiGolgeMateryali',
@@ -297,11 +297,11 @@ export class OptikIsleyici implements OptikIsleyiciArayuzu {
     aktifCisimNesnesi: THREE.Object3D,
     isikYonu: THREE.Vector3,
   ): void {
-    // Gölge kamerasını ışığa karşıt noktadan 15.0 m mesafede havuz merkezine yönlendir
+    // Gölge kamerasını ışığa karşıt noktadan 26.0 m mesafede havuz merkezine yönlendir
     this.geciciIsigaDogru.copy(isikYonu).negate().normalize();
     this.golgeKamerasi.position
       .copy(this.havuzGolgeOdakMerkezi)
-      .addScaledVector(this.geciciIsigaDogru, 15.0);
+      .addScaledVector(this.geciciIsigaDogru, 26.0);
 
     // Tepe güneş açılarında lookAt gimbal kilidini önle
     if (Math.abs(this.geciciIsigaDogru.y) > 0.99) {

@@ -61,7 +61,12 @@ body,
 }
 
 .kontrol-paneli.daraltildi {
-  width: min(312px, calc(100vw - 32px));
+  width: auto;
+  min-width: 256px;
+}
+
+.kontrol-paneli.daraltildi .telemetri-izgara {
+  display: none;
 }
 
 .panel-baslik-alani {
@@ -471,5 +476,240 @@ body,
     bottom: 10px;
     font-size: 11px;
     padding: 6px 10px;
+  }
+}
+
+/* =========================================================
+   Galatasaray Olimpik Su Sporları Şampiyonası Oyun Arayüzü
+   ========================================================= */
+
+.oyun-hud-katmani {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.oyun-mod-cubugu {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(11, 18, 32, 0.8);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(253, 185, 18, 0.28);
+  box-shadow: 0 12px 32px rgba(2, 8, 20, 0.5);
+  pointer-events: auto;
+}
+
+.oyun-mod-buton {
+  appearance: none;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(30, 41, 59, 0.62);
+  color: #cbd5e1;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.oyun-mod-buton:hover {
+  border-color: rgba(253, 185, 18, 0.55);
+  color: #fffbeb;
+}
+
+.oyun-mod-buton.aktif {
+  background: linear-gradient(135deg, rgba(169, 4, 50, 0.9), rgba(253, 185, 18, 0.42));
+  border-color: #fdb912;
+  color: #fffbeb;
+  box-shadow: 0 0 16px rgba(253, 185, 18, 0.28);
+}
+
+.oyun-alt-panel {
+  position: fixed;
+  left: 50%;
+  bottom: 58px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 24px));
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(10, 15, 28, 0.84);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(253, 185, 18, 0.34);
+  box-shadow: 0 18px 42px rgba(2, 8, 20, 0.62);
+  color: #f8fafc;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.oyun-alt-panel.gizli {
+  display: none;
+}
+
+.oyun-baslik-satiri {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.oyun-baslik {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fdb912;
+  letter-spacing: 0.02em;
+}
+
+.oyun-durum-etiketi {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(169, 4, 50, 0.35);
+  border: 1px solid rgba(253, 185, 18, 0.45);
+  color: #fffbeb;
+}
+
+.oyun-kontrol-satiri {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.oyun-aksiyon-buton {
+  appearance: none;
+  border: 1px solid rgba(253, 185, 18, 0.58);
+  background: linear-gradient(135deg, #a90432 0%, #c8102e 60%, #996515 100%);
+  color: #fffbeb;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.16s ease;
+}
+
+.oyun-aksiyon-buton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 18px rgba(253, 185, 18, 0.36);
+}
+
+.oyun-aksiyon-buton:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.oyun-ikincil-buton {
+  appearance: none;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(30, 41, 59, 0.72);
+  color: #e2e8f0;
+  border-radius: 9px;
+  padding: 6px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.oyun-ikincil-buton:hover:not(:disabled) {
+  border-color: #fdb912;
+  color: #fffbeb;
+}
+
+.oyun-ikincil-buton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.oyun-ritim-alani {
+  position: relative;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  overflow: hidden;
+  flex: 1;
+  min-width: 160px;
+}
+
+.oyun-ritim-yesil-bolge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 38%;
+  width: 24%;
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.35), rgba(253, 185, 18, 0.55), rgba(16, 185, 129, 0.35));
+}
+
+.oyun-ritim-imlec {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 0 10px #fdb912;
+  transform: translateX(-50%);
+}
+
+.oyun-hakem-kartlari {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.oyun-hakem-karti {
+  flex: 1;
+  text-align: center;
+  padding: 5px 4px;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(253, 185, 18, 0.36);
+}
+
+.oyun-hakem-etiket {
+  display: block;
+  font-size: 9px;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.oyun-hakem-puan {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fdb912;
+}
+
+.oyun-sonuc-ozet {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(253, 185, 18, 0.25);
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .oyun-mod-cubugu {
+    top: 56px;
+    left: 10px;
+    max-width: calc(100vw - 20px);
   }
 }

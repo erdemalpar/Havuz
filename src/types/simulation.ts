@@ -2,27 +2,27 @@ import * as THREE from 'three';
 
 /**
  * Tüm simülasyon modülleri tarafından paylaşılan Galatasaray Olimpik Yüzme Kompleksi ve fizik sabitleri.
- * Dünya koordinat sistemi: X [-4.0, +4.0], Z [-8.0, +8.0], taban Y = -2.60, durgun su Y = 0.0.
+ * Dünya koordinat sistemi: X [-8.0, +8.0], Z [-16.0, +16.0], taban Y = -2.80, durgun su Y = 0.0.
  */
 export const HAVUZ_SABITLERI = {
-  GENISLIK_X: 8.0,
-  UZUNLUK_Z: 16.0,
-  MIN_X: -4.0,
-  MAK_X: 4.0,
-  MIN_Z: -8.0,
-  MAK_Z: 8.0,
+  GENISLIK_X: 16.0,
+  UZUNLUK_Z: 32.0,
+  MIN_X: -8.0,
+  MAK_X: 8.0,
+  MIN_Z: -16.0,
+  MAK_Z: 16.0,
   SU_SEVIYESI_Y: 0.0,
-  TABAN_Y: -2.60,
+  TABAN_Y: -2.80,
   DUVAR_UST_Y: 0.18,
   KULVAR_SAYISI: 6,
   TRAMPLEN_YUKSEKLIK_Y: 10.0,
-  TRAMPLEN_UC_Z: 7.25,
+  TRAMPLEN_UC_Z: 15.15,
   TRAMPLEN_KULVAR_INDEKSI: 3,
-  CIKIS_BLOK_Z: -8.35,
+  CIKIS_BLOK_Z: -16.35,
   CIKIS_BLOK_UST_Y: 0.58,
-  KOSTIK_PROJEKSIYON_YARI_BOYUT: 4.8,
-  KOSTIK_PROJEKSIYON_YARI_BOYUT_X: 4.8,
-  KOSTIK_PROJEKSIYON_YARI_BOYUT_Z: 8.8,
+  KOSTIK_PROJEKSIYON_YARI_BOYUT: 9.2,
+  KOSTIK_PROJEKSIYON_YARI_BOYUT_X: 9.2,
+  KOSTIK_PROJEKSIYON_YARI_BOYUT_Z: 17.2,
   SU_YOGUNLUGU: 1000.0,
   YERCEKIMI: 9.81,
   GPGPU_COZUNURLUK: 256,
@@ -32,7 +32,7 @@ export const HAVUZ_SABITLERI = {
   KOSTIK_COZUNURLUK_X: 512,
   KOSTIK_COZUNURLUK_Z: 1024,
   GOLGE_COZUNURLUK: 1024,
-  GOLGE_KAMERA_YARI_BOYUT: 10.2,
+  GOLGE_KAMERA_YARI_BOYUT: 18.8,
   MAKSIMUM_DARBE_SAYISI: 24,
   MAKSIMUM_ALT_KURE: 8,
 } as const;
@@ -122,6 +122,46 @@ export type CisimTipi = 'insan' | 'kure' | 'kutu';
 
 /** Cismin hidrostatik ve davranışsal durum modları */
 export type YuzmeDurumModu = 'aktif_yuzme' | 'dengede' | 'batma' | 'serbest';
+
+/** Sahne ve oyun döngüsündeki aktif branş modu (yüzme ve tramplen ayrı çalışır) */
+export type AktifBransModu = 'bekleme' | 'yuzme_yarisi' | 'tramplen_atlayisi' | 'serbest_havuz';
+
+/** 10m tramplen havada yapılabilecek akrobasi figürleri */
+export type TramplenAkrobasiTipi = 'kugu' | 'kirik_pike' | 'tam_salto';
+
+/** Dijital skorboard ve oyun HUD'unda gösterilen kulvar yüzme satırı */
+export interface YuzmeKulvarSkorSatiri {
+  kulvarNo: number;
+  sporcuAdi: string;
+  oyuncuMu: boolean;
+  dereceSaniye: number | null;
+  anlikMesafeOrani: number;
+  sira: number;
+  puan: number;
+  bitirdiMi: boolean;
+}
+
+/** Yüzme yarışı modunda skorboard güncelleme paketi */
+export interface YuzmeSkorboardVerisi {
+  baslik: string;
+  altBaslik: string;
+  kronometreSaniye: number;
+  durumMetni: string;
+  satirlar: readonly YuzmeKulvarSkorSatiri[];
+}
+
+/** 10m tramplen modunda hakem puanları ve skorboard güncelleme paketi */
+export interface TramplenSkorboardVerisi {
+  sporcuAdi: string;
+  atlayisNo: number;
+  toplamAtlayis: number;
+  hareketAdi: string;
+  zorlukDerecesi: number;
+  hakemPuanlari: readonly number[];
+  atlayisPuani: number;
+  toplamPuan: number;
+  durumMetni: string;
+}
 
 /** GPU/CPU kaynaklarını bellek sızıntısı olmadan temizleyen ortak arayüz */
 export interface KaynakTemizlenebilir {
@@ -230,6 +270,7 @@ export interface KontrolPaneliOlaylari {
   parametreDegisti: (yeniParametreler: SimulasyonParametreleri) => void;
   suyuSifirlaIstegi: () => void;
   cismiYukaridanBirakIstegi: () => void;
-  yarisiYenidenBaslatIstegi: () => void;
+  yuzmeYarisiBaslatIstegi: () => void;
+  tramplenAtlayisiBaslatIstegi: () => void;
 }
 

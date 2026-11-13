@@ -1,7 +1,9 @@
 /// <reference types="vite/client" />
 import * as THREE from 'three';
 import { CisimYoneticisi } from './entities/CisimYoneticisi';
+import { OyunYoneticisi } from './game/OyunYoneticisi';
 import { FareEtkilesimYoneticisi } from './physics/FareEtkilesimYoneticisi';
+import { ArenaKalabalikVeHakemler } from './scene/ArenaKalabalikVeHakemler';
 import { HavuzGeometrisi } from './scene/HavuzGeometrisi';
 import { OlimpikEkipmanlar } from './scene/OlimpikEkipmanlar';
 import { SahneYoneticisi } from './scene/SahneYoneticisi';
@@ -14,6 +16,7 @@ import {
   type SuYuksekligiSorguFonksiyonu,
 } from './types/simulation';
 import { KontrolPaneli } from './ui/KontrolPaneli';
+import { OyunArayuzu } from './ui/OyunArayuzu';
 
 /**
  * 3B İnteraktif Havuz ve Su Simülasyonu başlangıç parametreleri.
@@ -42,9 +45,12 @@ class HavuzUygulamaOrkestratoru {
   private readonly havuzGeometrisi: HavuzGeometrisi;
   private readonly olimpikEkipmanlar: OlimpikEkipmanlar;
   private readonly sporKompleksiMimarisi: SporKompleksiMimarisi;
+  private readonly arenaKalabalikVeHakemler: ArenaKalabalikVeHakemler;
   private readonly cisimYoneticisi: CisimYoneticisi;
+  private readonly oyunYoneticisi: OyunYoneticisi;
   private readonly fareYoneticisi: FareEtkilesimYoneticisi;
   private readonly kontrolPaneli: KontrolPaneli;
+  private readonly oyunArayuzu: OyunArayuzu;
 
   private readonly guncelParametreler: SimulasyonParametreleri;
   private readonly suYuksekligiSorgulayici: SuYuksekligiSorguFonksiyonu;
@@ -88,11 +94,18 @@ class HavuzUygulamaOrkestratoru {
     this.havuzGeometrisi = new HavuzGeometrisi(this.sahneYoneticisi.sahne, havuzMateryali);
     this.olimpikEkipmanlar = new OlimpikEkipmanlar(this.sahneYoneticisi.sahne);
     this.sporKompleksiMimarisi = new SporKompleksiMimarisi(this.sahneYoneticisi.sahne);
+    this.arenaKalabalikVeHakemler = new ArenaKalabalikVeHakemler(this.sahneYoneticisi.sahne);
 
-    // 5. Hidrostatik fizik ve eklemli cisim yöneticisi
+    // 5. Hidrostatik fizik, eklemli cisim yöneticisi ve şampiyona oyun yöneticisi
     this.cisimYoneticisi = new CisimYoneticisi(this.sahneYoneticisi.sahne);
     this.cisimYoneticisi.parametreleriUygula(this.guncelParametreler);
     this.optikIsleyici.cisimlereSuAltiOptigiBagla(this.cisimYoneticisi.aktifNesneGetir());
+    this.oyunYoneticisi = new OyunYoneticisi(
+      this.cisimYoneticisi,
+      this.sporKompleksiMimarisi,
+      this.arenaKalabalikVeHakemler,
+      this.sahneYoneticisi,
+    );
 
     // 6. Raycast cisim sürükleme ve suya dokunma etkileşimi
     this.fareYoneticisi = new FareEtkilesimYoneticisi(
@@ -105,7 +118,7 @@ class HavuzUygulamaOrkestratoru {
       },
     );
 
-    // 7. Koyu cam efektli kontrol paneli ve olay bağlantıları
+    // 7. Koyu cam efektli kontrol paneli (varsayılan kapalı) ve oynanabilir şampiyona HUD'u
     this.kontrolPaneli = new KontrolPaneli(arayuzKatmani, this.guncelParametreler, {
       parametreDegisti: (yeniParametreler) => this.parametreGuncelle(yeniParametreler),
       suyuSifirlaIstegi: () => {
@@ -114,11 +127,18 @@ class HavuzUygulamaOrkestratoru {
       cismiYukaridanBirakIstegi: () => {
         this.cisimYoneticisi.yukaridanBirak();
       },
-      yarisiYenidenBaslatIstegi: () => {
+      yuzmeYarisiBaslatIstegi: () => {
         this.gpgpuSimulatoru.sifirla(this.sahneYoneticisi.renderer);
-        this.cisimYoneticisi.yarisiYenidenBaslat();
+        this.oyunYoneticisi.yuzmeYarisiBaslat(true);
+        this.oyunArayuzu.guncelle();
+      },
+      tramplenAtlayisiBaslatIstegi: () => {
+        this.gpgpuSimulatoru.sifirla(this.sahneYoneticisi.renderer);
+        this.oyunYoneticisi.tramplenAtlayisiBaslat(true);
+        this.oyunArayuzu.guncelle();
       },
     });
+    this.oyunArayuzu = new OyunArayuzu(arayuzKatmani, this.oyunYoneticisi);
 
     this.sahneYoneticisi.yenidenBoyutlandirDinleyiciAta((genislik, yukseklik) => {
       this.optikIsleyici.yenidenBoyutlandir(genislik, yukseklik);
@@ -169,13 +189,20 @@ class HavuzUygulamaOrkestratoru {
       const sinirliDt = Math.min(hamDtSaniye, 0.033);
       this.gecenSureSaniye += sinirliDt;
 
-      // 1. Kamera kontrolcüsü ve hidrostatik fizik + animasyon adımı
-      this.sahneYoneticisi.guncelle();
+      // 1. Kamera kontrolcüsü, hidrostatik fizik, oyun durumu ve tribün/hakem animasyonları
+      this.sahneYoneticisi.guncelle(sinirliDt);
       this.cisimYoneticisi.guncelle(
         sinirliDt,
         this.gecenSureSaniye,
         this.suYuksekligiSorgulayici,
       );
+      this.oyunYoneticisi.guncelle(sinirliDt, this.gecenSureSaniye);
+      this.arenaKalabalikVeHakemler.guncelle(
+        sinirliDt,
+        this.gecenSureSaniye,
+        this.oyunYoneticisi.goruntuGetir().coskuSeviyesi,
+      );
+      this.oyunArayuzu.guncelle();
 
       // 2. Cismin su kesitinden gelen deplasman dalgalarını GPGPU simülatörüne aktar
       const sinirVerisi = this.cisimYoneticisi.sinirVerisiGetir();
@@ -241,7 +268,10 @@ class HavuzUygulamaOrkestratoru {
     window.removeEventListener('beforeunload', this.temizlemeDinleyicisi);
 
     this.fareYoneticisi.temizle();
+    this.oyunArayuzu.temizle();
     this.kontrolPaneli.temizle();
+    this.oyunYoneticisi.temizle();
+    this.arenaKalabalikVeHakemler.temizle();
     this.cisimYoneticisi.temizle();
     this.olimpikEkipmanlar.temizle();
     this.sporKompleksiMimarisi.temizle();

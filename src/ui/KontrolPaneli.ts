@@ -67,7 +67,7 @@ export class KontrolPaneli implements KaynakTemizlenebilir {
   >();
   private readonly yogunlukKaydiricisi: KaydiriciBaglantisi;
 
-  private daraltildiMi = false;
+  private daraltildiMi = true;
   private temizlendiMi = false;
   private sonTelemetriZamani = -TELEMETRI_GUNCELLEME_ARALIGI_MS;
   private sonFpsSinifi = '';
@@ -81,9 +81,9 @@ export class KontrolPaneli implements KaynakTemizlenebilir {
     this.guncelParametreler = { ...baslangicParametreleri };
     this.olaylar = olaylar;
 
-    // Ana kontrol paneli kabuğu
+    // Ana kontrol paneli kabuğu (varsayılan kapalı/daraltılmış başlar)
     this.panelKok = document.createElement('aside');
-    this.panelKok.className = 'kontrol-paneli';
+    this.panelKok.className = 'kontrol-paneli daraltildi';
     this.panelKok.setAttribute('aria-label', 'Simülasyon Kontrol Paneli');
 
     // 1. Başlık ve Telemetri Satırı
@@ -102,12 +102,12 @@ export class KontrolPaneli implements KaynakTemizlenebilir {
     this.daraltButon = document.createElement('button');
     this.daraltButon.type = 'button';
     this.daraltButon.className = 'panel-daralt-buton';
-    this.daraltButon.textContent = 'Daralt';
-    this.daraltButon.setAttribute('aria-expanded', 'true');
+    this.daraltButon.textContent = 'Ayarlar • Aç';
+    this.daraltButon.setAttribute('aria-expanded', 'false');
     this.olayDinleyiciEkle(this.daraltButon, 'click', () => {
       this.daraltildiMi = !this.daraltildiMi;
       this.panelKok.classList.toggle('daraltildi', this.daraltildiMi);
-      this.daraltButon.textContent = this.daraltildiMi ? 'Genişlet' : 'Daralt';
+      this.daraltButon.textContent = this.daraltildiMi ? 'Ayarlar • Aç' : 'Daralt';
       this.daraltButon.setAttribute('aria-expanded', String(!this.daraltildiMi));
     });
 
@@ -307,6 +307,22 @@ export class KontrolPaneli implements KaynakTemizlenebilir {
       this.olaylar.suyuSifirlaIstegi();
     });
 
+    const yuzmeBaslatButon = document.createElement('button');
+    yuzmeBaslatButon.type = 'button';
+    yuzmeBaslatButon.className = 'eylem-buton buton-gs-aksan';
+    yuzmeBaslatButon.textContent = '🏊 Yüzme Yarışını Başlat';
+    this.olayDinleyiciEkle(yuzmeBaslatButon, 'click', () => {
+      this.olaylar.yuzmeYarisiBaslatIstegi();
+    });
+
+    const tramplenBaslatButon = document.createElement('button');
+    tramplenBaslatButon.type = 'button';
+    tramplenBaslatButon.className = 'eylem-buton buton-gs-aksan';
+    tramplenBaslatButon.textContent = '🤸 10m Atlayışını Başlat';
+    this.olayDinleyiciEkle(tramplenBaslatButon, 'click', () => {
+      this.olaylar.tramplenAtlayisiBaslatIstegi();
+    });
+
     const yukaridanBirakButon = document.createElement('button');
     yukaridanBirakButon.type = 'button';
     yukaridanBirakButon.className = 'eylem-buton tam-genislik';
@@ -315,19 +331,12 @@ export class KontrolPaneli implements KaynakTemizlenebilir {
       this.olaylar.cismiYukaridanBirakIstegi();
     });
 
-    const yarisBaslatButon = document.createElement('button');
-    yarisBaslatButon.type = 'button';
-    yarisBaslatButon.className = 'eylem-buton buton-gs-aksan';
-    yarisBaslatButon.textContent = 'Yarış & 10m Atlayışı Başlat';
-    this.olayDinleyiciEkle(yarisBaslatButon, 'click', () => {
-      this.olaylar.yarisiYenidenBaslatIstegi();
-    });
-
     eylemIzgara.append(
       this.suDurdurButon,
       suyuSifirlaButon,
+      yuzmeBaslatButon,
+      tramplenBaslatButon,
       yukaridanBirakButon,
-      yarisBaslatButon,
     );
     eylemBolumu.appendChild(eylemIzgara);
     panelGovde.appendChild(eylemBolumu);

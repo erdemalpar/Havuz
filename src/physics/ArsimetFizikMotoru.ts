@@ -290,9 +290,11 @@ export class ArsimetFizikMotoru {
         : enYakinKulvarMerkeziX(cisim.konum.x);
     const xSapmasi = hedefKulvarX - cisim.konum.x;
 
+    const hizCarpani = Math.max(0, cisim.hizCarpani);
+
     // Su altı kelebek kayma fazında ileri süzülme ve kulvar hizalaması
     if (cisim.aktifAnimasyonFazi === 'su_alti_kayma' && durumModu === 'aktif_yuzme') {
-      const kaymaItkisi = kutle * 2.1 * batanOran;
+      const kaymaItkisi = kutle * 2.1 * batanOran * hizCarpani;
       this.toplamKuvvet.addScaledVector(this.geciciYatayIleri, kaymaItkisi);
       this.toplamKuvvet.x += xSapmasi * kutle * 1.65 * batanOran;
       this.toplamKuvvet.x -= cisim.hiz.x * kutle * 0.55 * batanOran;
@@ -350,7 +352,8 @@ export class ArsimetFizikMotoru {
       this.toplamTork.y += aciHatasi * kutle * 3.1;
 
       const donusHizCarpani = THREE.MathUtils.clamp((noktaCarpim + 0.25) / 0.85, 0.18, 1.0);
-      const itkiKuvveti = kutle * 3.25 * batanOran * donusHizCarpani;
+      const itkiKuvveti =
+        hizCarpani <= 0.01 ? 0 : kutle * 3.25 * batanOran * donusHizCarpani * hizCarpani;
       this.toplamKuvvet.addScaledVector(this.geciciYatayIleri, itkiKuvveti);
 
       this.toplamKuvvet.x += xSapmasi * kutle * 1.95 * batanOran;

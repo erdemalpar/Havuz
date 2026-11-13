@@ -21,13 +21,14 @@ export const ORTAK_FINA_DESEN_GLSL = /* glsl */ `
 
     // 1. Havuz tabanında 6 kulvar boyunca uzanan koyu lacivert FINA çizgileri ve T dönüş işaretleri
     if (dunyaNormal.y > 0.7 && dunyaKonum.y < HAVUZ_TABAN_Y + 0.08) {
-      float anaCizgiX = 1.0 - smoothstep(0.118, 0.132, merkezUzaklikX);
-      float anaCizgiZ = 1.0 - smoothstep(6.78, 6.82, abs(dunyaKonum.z));
+      float tSinirZ = HAVUZ_MAK_Z - 2.0;
+      float anaCizgiX = 1.0 - smoothstep(0.13, 0.16, merkezUzaklikX);
+      float anaCizgiZ = 1.0 - smoothstep(tSinirZ - 0.02, tSinirZ + 0.02, abs(dunyaKonum.z));
       float anaCizgiMaske = anaCizgiX * anaCizgiZ;
 
-      float tBaslikX = 1.0 - smoothstep(0.47, 0.49, merkezUzaklikX);
-      float tBaslikZ = smoothstep(6.78, 6.82, abs(dunyaKonum.z)) *
-        (1.0 - smoothstep(7.03, 7.07, abs(dunyaKonum.z)));
+      float tBaslikX = 1.0 - smoothstep(0.58, 0.61, merkezUzaklikX);
+      float tBaslikZ = smoothstep(tSinirZ - 0.02, tSinirZ + 0.02, abs(dunyaKonum.z)) *
+        (1.0 - smoothstep(tSinirZ + 0.24, tSinirZ + 0.28, abs(dunyaKonum.z)));
       float tMaske = tBaslikX * tBaslikZ;
 
       float cizgiMaske = clamp(max(anaCizgiMaske, tMaske), 0.0, 1.0);
@@ -35,26 +36,26 @@ export const ORTAK_FINA_DESEN_GLSL = /* glsl */ `
       sonucRenk = mix(sonucRenk, cizgiSeramik, cizgiMaske);
     }
 
-    // 2. İki uç duvarda (Z = -8.0 ve Z = +8.0) her kulvar merkezinde Galatasaray Sarı-Kırmızı dokunma plakaları
+    // 2. İki uç duvarda (Z = -16.0 ve Z = +16.0) her kulvar merkezinde Galatasaray Sarı-Kırmızı dokunma plakaları
     if (abs(dunyaNormal.z) > 0.7 && abs(dunyaKonum.z) > HAVUZ_MAK_Z - 0.08) {
-      float plakaX = 1.0 - smoothstep(0.55, 0.57, merkezUzaklikX);
+      float plakaX = 1.0 - smoothstep(0.92, 0.95, merkezUzaklikX);
       float plakaY = smoothstep(-0.83, -0.81, dunyaKonum.y) *
         (1.0 - smoothstep(0.09, 0.11, dunyaKonum.y));
       float plakaMaske = clamp(plakaX * plakaY, 0.0, 1.0);
 
       if (plakaMaske > 0.001) {
         float disCerceve = max(
-          smoothstep(0.49, 0.51, merkezUzaklikX),
+          smoothstep(0.84, 0.88, merkezUzaklikX),
           max(
             smoothstep(0.03, 0.05, dunyaKonum.y),
             1.0 - smoothstep(-0.78, -0.76, dunyaKonum.y)
           )
         );
 
-        float dikeyHedef = (1.0 - smoothstep(0.11, 0.13, merkezUzaklikX)) *
+        float dikeyHedef = (1.0 - smoothstep(0.14, 0.17, merkezUzaklikX)) *
           smoothstep(-0.69, -0.67, dunyaKonum.y) *
           (1.0 - smoothstep(-0.11, -0.09, dunyaKonum.y));
-        float yatayHedef = (1.0 - smoothstep(0.35, 0.37, merkezUzaklikX)) *
+        float yatayHedef = (1.0 - smoothstep(0.46, 0.49, merkezUzaklikX)) *
           (1.0 - smoothstep(0.05, 0.07, abs(dunyaKonum.y + 0.39)));
 
         float olukDesen = step(0.78, fract((dunyaKonum.y + 2.0) * 14.0)) * 0.55;

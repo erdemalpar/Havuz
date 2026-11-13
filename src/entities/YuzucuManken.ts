@@ -27,7 +27,9 @@ export type YuzucuAnimasyonFazi =
   | 'cikis_hazirlik'
   | 'havada_atlayis'
   | 'su_alti_kayma'
-  | 'kugu_dalis';
+  | 'kugu_dalis'
+  | 'kirik_pike'
+  | 'tam_salto';
 
 interface KolEklemGrubu {
   omuzPivoti: THREE.Group;
@@ -58,8 +60,9 @@ export class YuzucuManken extends SuCismiTaban {
   public atanmisKulvarX: number | null = null;
   public maksPozitifZ: number | null = null;
   public aktifAnimasyonFazi: YuzucuAnimasyonFazi = 'otomatik';
+  public hizCarpani = 1.0;
 
-  private readonly tempoCarpani: number;
+  private tempoCarpani: number;
   private readonly iskeletGrubu: THREE.Group;
   private readonly boyunPivoti: THREE.Group;
   private readonly solKol: KolEklemGrubu;
@@ -625,6 +628,10 @@ export class YuzucuManken extends SuCismiTaban {
     return this.boyutVektoru;
   }
 
+  public tempoCarpaniAyarla(yeniTempo: number): void {
+    this.tempoCarpani = THREE.MathUtils.clamp(yeniTempo, 0.72, 1.55);
+  }
+
   public override konumuSifirla(hedefKonum: THREE.Vector3): void {
     super.konumuSifirla(hedefKonum);
     for (const durum of this.uzuvTakipDurumlari) {
@@ -649,11 +656,20 @@ export class YuzucuManken extends SuCismiTaban {
       this.streamlineOkPozuUygula(yumusatma);
     } else if (this.aktifAnimasyonFazi === 'kugu_dalis') {
       this.kuguDalisPozuUygula(yumusatma);
+    } else if (this.aktifAnimasyonFazi === 'kirik_pike') {
+      this.kirikPikePozuUygula(yumusatma);
+    } else if (this.aktifAnimasyonFazi === 'tam_salto') {
+      this.tamSaltoPozuUygula(yumusatma);
     } else if (this.aktifAnimasyonFazi === 'su_alti_kayma') {
       this.kelebekFazi += guvenliDt * 9.5;
       this.suAltiKelebekPozuUygula(yumusatma);
-    } else if (durumModu === 'aktif_yuzme' && batanOran > 0.25 && !this.tutuluyorMu) {
-      this.kulacFazi += guvenliDt * 4.8 * this.tempoCarpani;
+    } else if (
+      durumModu === 'aktif_yuzme' &&
+      batanOran > 0.25 &&
+      !this.tutuluyorMu &&
+      this.hizCarpani > 0.05
+    ) {
+      this.kulacFazi += guvenliDt * 4.8 * this.tempoCarpani * THREE.MathUtils.clamp(this.hizCarpani, 0.65, 1.45);
       this.serbestStilAnimasyonuUygula(yumusatma);
     } else if (durumModu === 'batma') {
       this.batmaPozuUygula(yumusatma);
@@ -663,6 +679,54 @@ export class YuzucuManken extends SuCismiTaban {
 
     this.kokGrup.updateMatrixWorld(true);
     return this.uzuvSuDarbeleriniUret(guvenliDt, durumModu, suYuksekligiSorgula);
+  }
+
+  private kirikPikePozuUygula(yumusatma: number): void {
+    this.iskeletGrubu.rotation.z = THREE.MathUtils.lerp(this.iskeletGrubu.rotation.z, 0, yumusatma);
+    this.boyunPivoti.rotation.set(
+      THREE.MathUtils.lerp(this.boyunPivoti.rotation.x, -0.35, yumusatma),
+      0,
+      THREE.MathUtils.lerp(this.boyunPivoti.rotation.z, 0, yumusatma),
+    );
+
+    // Pike pozu: dizler tam düz, kalçadan 75° katlanmış, eller baldır arkasını kavrar
+    for (const [kol, taraf] of [
+      [this.solKol, 1],
+      [this.sagKol, -1],
+    ] as const) {
+      kol.omuzPivoti.rotation.x = this.aciYumusakGecis(kol.omuzPivoti.rotation.x, -0.78, yumusatma * 1.6);
+      kol.omuzPivoti.rotation.z = THREE.MathUtils.lerp(kol.omuzPivoti.rotation.z, taraf * 0.28, yumusatma * 1.6);
+      kol.dirsekPivoti.rotation.x = THREE.MathUtils.lerp(kol.dirsekPivoti.rotation.x, -0.18, yumusatma * 1.6);
+    }
+
+    for (const bacak of [this.solBacak, this.sagBacak]) {
+      bacak.kalcaPivoti.rotation.x = THREE.MathUtils.lerp(bacak.kalcaPivoti.rotation.x, -1.28, yumusatma * 1.6);
+      bacak.dizPivoti.rotation.x = THREE.MathUtils.lerp(bacak.dizPivoti.rotation.x, 0.03, yumusatma * 1.6);
+    }
+  }
+
+  private tamSaltoPozuUygula(yumusatma: number): void {
+    this.iskeletGrubu.rotation.z = THREE.MathUtils.lerp(this.iskeletGrubu.rotation.z, 0, yumusatma);
+    this.boyunPivoti.rotation.set(
+      THREE.MathUtils.lerp(this.boyunPivoti.rotation.x, -0.52, yumusatma),
+      0,
+      THREE.MathUtils.lerp(this.boyunPivoti.rotation.z, 0, yumusatma),
+    );
+
+    // Tuck (salto) pozu: dizler ve kalça tamamen katlı, kollar kaval kemiklerini tutar
+    for (const [kol, taraf] of [
+      [this.solKol, 1],
+      [this.sagKol, -1],
+    ] as const) {
+      kol.omuzPivoti.rotation.x = this.aciYumusakGecis(kol.omuzPivoti.rotation.x, -0.45, yumusatma * 1.8);
+      kol.omuzPivoti.rotation.z = THREE.MathUtils.lerp(kol.omuzPivoti.rotation.z, taraf * 0.16, yumusatma * 1.8);
+      kol.dirsekPivoti.rotation.x = THREE.MathUtils.lerp(kol.dirsekPivoti.rotation.x, -1.05, yumusatma * 1.8);
+    }
+
+    for (const bacak of [this.solBacak, this.sagBacak]) {
+      bacak.kalcaPivoti.rotation.x = THREE.MathUtils.lerp(bacak.kalcaPivoti.rotation.x, -1.55, yumusatma * 1.8);
+      bacak.dizPivoti.rotation.x = THREE.MathUtils.lerp(bacak.dizPivoti.rotation.x, 1.78, yumusatma * 1.8);
+    }
   }
 
   private cikisHazirlikPozuUygula(yumusatma: number): void {
