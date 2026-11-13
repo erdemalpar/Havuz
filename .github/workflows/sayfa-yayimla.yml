@@ -1,0 +1,57 @@
+name: GitHub Pages Üzerinde Yayımla
+run-name: Galatasaray Olimpik Havuz Simülasyonu GitHub Pages Yayımı
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  derle:
+    name: Projeyi Derle ve Paketle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kaynak kodunu indir
+        uses: actions/checkout@v4
+
+      - name: Node.js ortamını hazırla
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: GitHub Pages yapılandırmasını hazırla
+        uses: actions/configure-pages@v5
+
+      - name: Bağımlılıkları kur
+        run: npm ci
+
+      - name: Üretim paketini derle
+        run: npm run build
+
+      - name: Derleme çıktısını Pages yapıtı olarak yükle
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  yayimla:
+    name: GitHub Pages Ortamına Yayımla
+    needs: derle
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.yayim.outputs.page_url }}
+    steps:
+      - name: GitHub Pages üzerine dağıtımı gerçekleştir
+        id: yayim
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,475 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#uygulama-kapsayici {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #0b1322;
+  color: #e6f1ff;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#arayuz-katmani {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Sağ üst koyu mod cam efektli kontrol paneli */
+.kontrol-paneli {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: min(344px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(11, 18, 32, 0.76);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid rgba(253, 185, 18, 0.24);
+  border-radius: 16px;
+  box-shadow:
+    0 22px 54px rgba(2, 8, 20, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  pointer-events: auto;
+  overflow: hidden;
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.kontrol-paneli::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 3px;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, #fdb912 0%, #a90432 50%, #fdb912 100%);
+}
+
+.kontrol-paneli.daraltildi {
+  width: min(312px, calc(100vw - 32px));
+}
+
+.panel-baslik-alani {
+  padding: 12px 16px 12px;
+  border-bottom: 1px solid rgba(253, 185, 18, 0.14);
+  background: linear-gradient(180deg, rgba(169, 4, 50, 0.12), transparent);
+}
+
+.kontrol-paneli.daraltildi .panel-baslik-alani {
+  border-bottom-color: transparent;
+}
+
+.panel-ust-satir {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-baslik-metin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fffbeb;
+}
+
+.baslik-nokta {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fdb912 0%, #a90432 100%);
+  box-shadow: 0 0 10px rgba(253, 185, 18, 0.85);
+  flex-shrink: 0;
+}
+
+.panel-daralt-buton {
+  appearance: none;
+  border: 1px solid rgba(148, 210, 255, 0.22);
+  background: rgba(30, 41, 59, 0.55);
+  color: #bae6fd;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.panel-daralt-buton:hover {
+  background: rgba(34, 211, 238, 0.18);
+  border-color: rgba(56, 224, 255, 0.45);
+  color: #ffffff;
+}
+
+/* Telemetri rozetleri */
+.telemetri-izgara {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.telemetri-rozet {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 210, 255, 0.16);
+  color: #cbd5e1;
+}
+
+.telemetri-etiket {
+  color: #7dd3fc;
+  font-weight: 500;
+}
+
+.telemetri-rozet.fps-iyi {
+  border-color: rgba(52, 211, 153, 0.4);
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.telemetri-rozet.fps-orta {
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.telemetri-rozet.fps-dusuk {
+  border-color: rgba(248, 113, 113, 0.5);
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.telemetri-rozet.durum-tamam {
+  border-color: rgba(34, 211, 238, 0.36);
+  color: #a5f3fc;
+  background: rgba(6, 182, 212, 0.12);
+}
+
+.telemetri-rozet.durum-uyari {
+  border-color: rgba(251, 191, 36, 0.42);
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+/* Kaydırılabilir panel gövdesi */
+.panel-govde {
+  padding: 14px 16px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.kontrol-paneli.daraltildi .panel-govde {
+  display: none;
+}
+
+.panel-govde::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-govde::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel-govde::-webkit-scrollbar-thumb {
+  background: rgba(148, 210, 255, 0.24);
+  border-radius: 999px;
+}
+
+.panel-govde::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.45);
+}
+
+.kontrol-bolum {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(148, 210, 255, 0.1);
+}
+
+.kontrol-bolum:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.bolum-baslik {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #fcd34d;
+}
+
+/* Segmentli buton grupları */
+.segment-grup {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.segment-buton {
+  appearance: none;
+  border: 1px solid rgba(148, 210, 255, 0.16);
+  background: rgba(15, 25, 44, 0.65);
+  color: #cbd5e1;
+  border-radius: 10px;
+  padding: 7px 6px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.1s ease;
+}
+
+.segment-buton:hover {
+  border-color: rgba(253, 185, 18, 0.45);
+  color: #f8fafc;
+  background: rgba(30, 46, 74, 0.72);
+}
+
+.segment-buton:active {
+  transform: scale(0.98);
+}
+
+.segment-buton.aktif {
+  background: linear-gradient(135deg, rgba(169, 4, 50, 0.56), rgba(253, 185, 18, 0.24));
+  border-color: rgba(253, 185, 18, 0.78);
+  color: #fffbeb;
+  box-shadow:
+    0 0 18px rgba(253, 185, 18, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Özel stilize range kaydırıcılar */
+.kaydirici-satir {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kaydirici-ust {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kaydirici-etiket {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #dce8f5;
+}
+
+.kaydirici-deger {
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: #67e8f9;
+  background: rgba(8, 47, 73, 0.52);
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  border-radius: 6px;
+  padding: 2px 7px;
+  min-width: 62px;
+  text-align: right;
+}
+
+.ozel-kaydirici {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #22d3ee 0%,
+    #38bdf8 var(--dolgu, 50%),
+    rgba(148, 163, 184, 0.24) var(--dolgu, 50%),
+    rgba(148, 163, 184, 0.24) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.ozel-kaydirici::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #22d3ee;
+  border: 2px solid #e0f9ff;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.85);
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.ozel-kaydirici::-webkit-slider-thumb:hover {
+  transform: scale(1.14);
+  box-shadow: 0 0 16px rgba(103, 232, 249, 1);
+}
+
+.ozel-kaydirici::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.ozel-kaydirici::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #22d3ee;
+  border: 2px solid #e0f9ff;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.85);
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+/* Eylem butonları */
+.eylem-izgara {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.eylem-buton {
+  appearance: none;
+  border: 1px solid rgba(148, 210, 255, 0.22);
+  background: rgba(21, 34, 58, 0.78);
+  color: #e2f1ff;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.1s ease;
+}
+
+.eylem-buton:hover {
+  background: rgba(34, 211, 238, 0.18);
+  border-color: rgba(56, 224, 255, 0.5);
+  color: #ffffff;
+}
+
+.eylem-buton:active {
+  transform: scale(0.985);
+}
+
+.eylem-buton.tam-genislik {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.3), rgba(6, 182, 212, 0.24));
+  border-color: rgba(56, 224, 255, 0.45);
+  color: #ecfeff;
+}
+
+.eylem-buton.tam-genislik:hover {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.44), rgba(6, 182, 212, 0.36));
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.26);
+}
+
+.eylem-buton.buton-gs-aksan {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(169, 4, 50, 0.78), rgba(253, 185, 18, 0.36));
+  border-color: rgba(253, 185, 18, 0.72);
+  color: #fffbeb;
+  box-shadow: 0 6px 20px rgba(169, 4, 50, 0.35);
+}
+
+.eylem-buton.buton-gs-aksan:hover {
+  background: linear-gradient(135deg, rgba(200, 16, 46, 0.9), rgba(253, 185, 18, 0.52));
+  border-color: #fdb912;
+  box-shadow: 0 0 24px rgba(253, 185, 18, 0.35);
+  color: #ffffff;
+}
+
+.eylem-buton.durum-durduruldu {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fef3c7;
+}
+
+/* Sol alt köşe etkileşim rehberi */
+.etkilesim-rehberi {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(11, 18, 32, 0.74);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(253, 185, 18, 0.22);
+  border-left: 3px solid #fdb912;
+  box-shadow: 0 12px 32px rgba(2, 8, 20, 0.45);
+  font-size: 12px;
+  font-weight: 500;
+  color: #e2e8f0;
+  letter-spacing: 0.01em;
+  user-select: none;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .kontrol-paneli {
+    top: 10px;
+    right: 10px;
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 68px);
+  }
+
+  .etkilesim-rehberi {
+    left: 10px;
+    bottom: 10px;
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
