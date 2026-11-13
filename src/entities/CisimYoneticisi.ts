@@ -228,10 +228,6 @@ export class CisimYoneticisi implements KaynakTemizlenebilir {
       new THREE.Vector3(kulvarMerkeziXGetir(3), 0.15, 0),
     );
 
-    // Başlangıçta yüzme ve tramplen aynı anda otomatik başlamaz; kullanıcı seçimine kadar bekler
-    this.beklemeModunaGec();
-    this.sahne.add(this.insanGrubu);
-
     const bosAltKureler: AltKureVerisi[] = Array.from(
       { length: HAVUZ_SABITLERI.MAKSIMUM_ALT_KURE },
       () => ({
@@ -253,7 +249,9 @@ export class CisimYoneticisi implements KaynakTemizlenebilir {
       batanHacimOrani: 0,
     };
 
-    this.sinirVerisiGuncelle([]);
+    // Başlangıçta yüzme ve tramplen aynı anda otomatik başlamaz; kullanıcı seçimine kadar bekler
+    this.beklemeModunaGec();
+    this.sahne.add(this.insanGrubu);
   }
 
   private tramplenDikDurusYonelimiOlustur(oneEgilmeRadyan = 0): THREE.Quaternion {
